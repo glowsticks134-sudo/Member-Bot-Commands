@@ -758,29 +758,40 @@ function buildAddEmbed(client: Client): { embed: EmbedBuilder; row: ActionRowBui
 
 export async function doRestock(rawText: string): Promise<EmbedBuilder> {
   const lines = rawText.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
-  const existing = new Set(readAuthUsers().map((u) => u.userId));
-  let added = 0, skipped = 0, invalid = 0;
-  const newEntries: string[] = [];
+  let added = 0, updated = 0, invalid = 0;
+
+  const existingLines = fs.existsSync(AUTHS_FILE)
+    ? fs.readFileSync(AUTHS_FILE, "utf-8").split("\n").filter(Boolean)
+    : [];
+  const existingMap = new Map<string, string>();
+  for (const line of existingLines) {
+    const userId = line.split(",")[0];
+    if (userId) existingMap.set(userId, line);
+  }
+
   for (const line of lines) {
     const parts = line.split(",");
     if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) { invalid++; continue; }
     const [userId, accessToken, refreshToken] = parts as [string, string, string];
-    if (existing.has(userId)) { skipped++; continue; }
-    newEntries.push(`${userId},${accessToken},${refreshToken}`);
-    existing.add(userId);
-    added++;
+    const entry = `${userId},${accessToken},${refreshToken}`;
+    if (existingMap.has(userId)) {
+      existingMap.set(userId, entry);
+      updated++;
+    } else {
+      existingMap.set(userId, entry);
+      added++;
+    }
   }
-  if (newEntries.length > 0) {
-    const current = fs.existsSync(AUTHS_FILE) ? fs.readFileSync(AUTHS_FILE, "utf-8").trimEnd() : "";
-    fs.writeFileSync(AUTHS_FILE, current ? current + "\n" + newEntries.join("\n") + "\n" : newEntries.join("\n") + "\n");
-  }
-  const total = readAuthUsers().length;
+
+  fs.writeFileSync(AUTHS_FILE, [...existingMap.values()].join("\n") + "\n");
+  const total = existingMap.size;
+
   return new EmbedBuilder()
     .setTitle("🔄 Restock Complete")
-    .setColor(added > 0 ? 0x57f287 : 0xfaa61a)
+    .setColor(added > 0 || updated > 0 ? 0x57f287 : 0xfaa61a)
     .addFields(
       { name: "✅ Added", value: `${added}`, inline: true },
-      { name: "⏭️ Skipped (dup)", value: `${skipped}`, inline: true },
+      { name: "🔄 Updated", value: `${updated}`, inline: true },
       { name: "❌ Invalid", value: `${invalid}`, inline: true },
       { name: "📦 Total Stored", value: `${total}`, inline: true }
     )
