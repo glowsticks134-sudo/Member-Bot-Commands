@@ -2070,7 +2070,11 @@ export async function startBot() {
     if (guildId) {
       const djoinChannel = getChannelLock(guildId, "djoin");
       if (djoinChannel && message.channelId === djoinChannel) {
-        setTimeout(() => { message.delete().catch(() => {}); }, 15_000);
+        const guildOwnerId = message.guild?.ownerId ?? "";
+        const isOwner = isAuthorizedUser(guildOwnerId, guildId, message.author.id);
+        if (!isOwner) {
+          setTimeout(() => { message.delete().catch(() => {}); }, 15_000);
+        }
       }
     }
     await handlePrefix(message, client);
