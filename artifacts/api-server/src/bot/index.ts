@@ -2066,6 +2066,13 @@ export async function startBot() {
   });
 
   client.on("messageCreate", async (message) => {
+    const guildId = message.guild?.id;
+    if (guildId) {
+      const djoinChannel = getChannelLock(guildId, "djoin");
+      if (djoinChannel && message.channelId === djoinChannel) {
+        setTimeout(() => { message.delete().catch(() => {}); }, 15_000);
+      }
+    }
     await handlePrefix(message, client);
   });
 
