@@ -1260,15 +1260,23 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       break;
 
     case "stock": {
-      await interaction.reply({ embeds: [buildStockEmbed()] });
-      const stockMsg = await interaction.fetchReply();
+      if (!interaction.channel || !interaction.channel.isTextBased()) {
+        await interaction.reply({ content: "❌ Cannot post embed in this channel.", flags: 64 });
+        break;
+      }
+      await interaction.reply({ content: "✅ Live stock embed posted below.", flags: 64 });
+      const stockMsg = await interaction.channel.send({ embeds: [buildStockEmbed()] });
       liveMessages.set("stock", { channelId: stockMsg.channelId, messageId: stockMsg.id });
       break;
     }
 
     case "status": {
-      await interaction.reply({ embeds: [buildStatusEmbed(client)] });
-      const statusMsg = await interaction.fetchReply();
+      if (!interaction.channel || !interaction.channel.isTextBased()) {
+        await interaction.reply({ content: "❌ Cannot post embed in this channel.", flags: 64 });
+        break;
+      }
+      await interaction.reply({ content: "✅ Live status embed posted below.", flags: 64 });
+      const statusMsg = await interaction.channel.send({ embeds: [buildStatusEmbed(client)] });
       liveMessages.set("status", { channelId: statusMsg.channelId, messageId: statusMsg.id });
       break;
     }
@@ -1795,11 +1803,13 @@ export async function startBot() {
         const msg = await channel.messages.fetch(ref.messageId);
         const embed = type === "stock" ? buildStockEmbed() : buildStatusEmbed(client);
         await msg.edit({ embeds: [embed] });
-      } catch {
+        logger.info({ type, messageId: ref.messageId }, "Live embed updated");
+      } catch (err) {
+        logger.warn({ err, type }, "Failed to update live embed — removing tracker");
         liveMessages.delete(type);
       }
     }
-  }, 60_000);
+  }, 30_000);
 
   await client.login(BOT_TOKEN);
 }
