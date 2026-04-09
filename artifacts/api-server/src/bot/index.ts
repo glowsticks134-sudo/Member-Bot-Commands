@@ -923,7 +923,7 @@ function buildDailyRestockStatusEmbed(): EmbedBuilder {
     .setTitle("📅 Daily Restock Active")
     .setColor(0x5865f2)
     .addFields(
-      { name: "⏰ Time (UTC)", value: config.time, inline: true },
+      { name: "⏰ Time (MST)", value: config.time, inline: true },
       { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
       { name: "✅ Ran Today", value: ranToday ? "Yes" : "No", inline: true },
       { name: "📆 Last Ran", value: lastRan, inline: true },
@@ -1454,10 +1454,10 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
         embeds: [
           new EmbedBuilder()
             .setTitle("📅 Daily Restock Set")
-            .setDescription(`The bot will restock **${tokenCount} tokens** every day at **${normalizedTime} UTC**.`)
+            .setDescription(`The bot will restock **${tokenCount} tokens** every day at **${normalizedTime} MST**.`)
             .setColor(0x57f287)
             .addFields(
-              { name: "⏰ Time (UTC)", value: normalizedTime, inline: true },
+              { name: "⏰ Time (MST)", value: normalizedTime, inline: true },
               { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
             )
             .setFooter({ text: "Use /cancel_daily_restock to stop it" })
@@ -1843,10 +1843,10 @@ async function handlePrefix(message: Message, client: Client) {
           embeds: [
             new EmbedBuilder()
               .setTitle("📅 Daily Restock Set")
-              .setDescription(`The bot will restock **${tokenCount} tokens** every day at **${normalizedTime} UTC**.`)
+              .setDescription(`The bot will restock **${tokenCount} tokens** every day at **${normalizedTime} MST**.`)
               .setColor(0x57f287)
               .addFields(
-                { name: "⏰ Time (UTC)", value: normalizedTime, inline: true },
+                { name: "⏰ Time (MST)", value: normalizedTime, inline: true },
                 { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
               )
               .setFooter({ text: "Use !cancel_daily_restock to stop it" })
@@ -1956,7 +1956,8 @@ export async function startBot() {
     const daily = readDailyRestock();
     if (daily) {
       const now = new Date();
-      const currentTime = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
+      const mstHours = (now.getUTCHours() - 7 + 24) % 24;
+      const currentTime = `${String(mstHours).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
       const today = getTodayDateString();
       if (currentTime === daily.time && daily.lastRanDate !== today) {
         daily.lastRanDate = today;
@@ -1964,7 +1965,7 @@ export async function startBot() {
         const resultEmbed = await doRestock(daily.rawTokens);
         const notifyEmbed = new EmbedBuilder()
           .setTitle("📅 Daily Restock Ran")
-          .setDescription(`Daily restock at **${daily.time} UTC** has completed.`)
+          .setDescription(`Daily restock at **${daily.time} MST** has completed.`)
           .setColor(0x57f287)
           .setTimestamp();
         try {
