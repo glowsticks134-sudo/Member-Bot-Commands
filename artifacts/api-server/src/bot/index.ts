@@ -390,6 +390,12 @@ const slashCommands = [
     .addStringOption((o) => o.setName("tokens").setDescription("Paste tokens directly (userId,access,refresh per line)").setRequired(false)),
   new SlashCommandBuilder().setName("cancel_daily_restock").setDescription("(Owner only) Cancel the daily restock"),
   new SlashCommandBuilder().setName("daily_restock_status").setDescription("(Owner only) Show the current daily restock configuration"),
+  new SlashCommandBuilder()
+    .setName("edit_daily_restock")
+    .setDescription("(Owner only) Edit the time and/or tokens for the daily restock")
+    .addStringOption((o) => o.setName("time").setDescription("New time in MST 24h format (e.g. 14:00) — leave blank to keep current").setRequired(false))
+    .addAttachmentOption((o) => o.setName("file").setDescription("New tokens file — leave blank to keep current").setRequired(false))
+    .addStringOption((o) => o.setName("tokens").setDescription("New pasted tokens — leave blank to keep current").setRequired(false)),
   new SlashCommandBuilder().setName("stock").setDescription("Show the current number of stored tokens"),
   new SlashCommandBuilder().setName("status").setDescription("Show the bot's current online status and stats"),
 ].map((c) => c.toJSON());
@@ -447,6 +453,7 @@ function buildHelpEmbed(): EmbedBuilder {
           "`/cancel_schedule id:ID` or `!cancel_schedule ID` — Cancel a schedule (owners only)\n" +
           "`/set_daily_restock time:14:00` or `!set_daily_restock 14:00` — Set a daily restock (owners only)\n" +
           "`/cancel_daily_restock` or `!cancel_daily_restock` — Cancel the daily restock (owners only)\n" +
+          "`/edit_daily_restock` or `!edit_daily_restock` — Edit the daily restock time/tokens (owners only)\n" +
           "`/daily_restock_status` or `!daily_restock_status` — Show daily restock config (owners only)",
         inline: false,
       },
@@ -1484,6 +1491,64 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       await interaction.reply({ embeds: [buildDailyRestockStatusEmbed()], flags: 64 });
       break;
 
+    case "edit_daily_restock": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      const existing = readDailyRestock();
+      if (!existing) {
+        await interaction.reply({ embeds: [new EmbedBuilder().setTitle("❌ No Daily Restock").setDescription("No daily restock is set up yet. Use `/set_daily_restock` to create one.").setColor(0xed4245)], flags: 64 });
+        return;
+      }
+      const newTimeInput = interaction.options.getString("time");
+      const newAttachment = interaction.options.getAttachment("file");
+      const newPasted = interaction.options.getString("tokens");
+      if (!newTimeInput && !newAttachment && !newPasted) {
+        await interaction.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Nothing to Update").setDescription("Provide at least a new `time`, `file`, or `tokens` to update.").setColor(0xfaa61a)], flags: 64 });
+        return;
+      }
+      let normalizedTime = existing.time;
+      if (newTimeInput) {
+        if (!/^\d{1,2}:\d{2}$/.test(newTimeInput.trim())) {
+          await interaction.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time Format").setDescription("Use 24-hour MST format like `14:00` or `08:30`.").setColor(0xed4245)], flags: 64 });
+          return;
+        }
+        const [hh, mm] = newTimeInput.trim().split(":").map(Number);
+        if (hh! > 23 || mm! > 59) {
+          await interaction.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time").setDescription("Hours must be 0–23 and minutes 0–59.").setColor(0xed4245)], flags: 64 });
+          return;
+        }
+        normalizedTime = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      }
+      await interaction.deferReply({ flags: 64 });
+      let rawTokens = existing.rawTokens;
+      if (newAttachment) {
+        if (!newAttachment.contentType?.startsWith("text") && !newAttachment.name.endsWith(".txt")) { await interaction.editReply("❌ Please upload a `.txt` file."); return; }
+        const r = await fetch(newAttachment.url);
+        if (!r.ok) { await interaction.editReply("❌ Could not download the file."); return; }
+        rawTokens = await r.text();
+      } else if (newPasted) {
+        rawTokens = newPasted;
+      }
+      writeDailyRestock({ ...existing, time: normalizedTime, rawTokens });
+      const tokenCount = rawTokens.split(/[\r\n]+/).filter(Boolean).length;
+      const changes: string[] = [];
+      if (newTimeInput) changes.push(`⏰ Time → **${normalizedTime} MST**`);
+      if (newAttachment || newPasted) changes.push(`📦 Tokens → **${tokenCount} tokens**`);
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("✅ Daily Restock Updated")
+            .setDescription(changes.join("\n"))
+            .setColor(0x57f287)
+            .addFields(
+              { name: "⏰ Time (MST)", value: normalizedTime, inline: true },
+              { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
+            )
+            .setTimestamp()
+        ],
+      });
+      break;
+    }
+
     default:
       await interaction.reply({ content: "❌ Unknown command.", flags: 64 });
   }
@@ -1869,6 +1934,59 @@ async function handlePrefix(message: Message, client: Client) {
         if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
         await message.reply({ embeds: [buildDailyRestockStatusEmbed()] });
         break;
+
+      case "edit_daily_restock": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        const existing = readDailyRestock();
+        if (!existing) {
+          await message.reply({ embeds: [new EmbedBuilder().setTitle("❌ No Daily Restock").setDescription("No daily restock is set up yet. Use `!set_daily_restock` to create one.").setColor(0xed4245)] });
+          return;
+        }
+        const newTimeArg = args[0]?.trim();
+        const hasNewTime = newTimeArg && /^\d{1,2}:\d{2}$/.test(newTimeArg);
+        const attachment: Attachment | undefined = message.attachments.first();
+        const pastedText = args.slice(hasNewTime ? 1 : 0).join("\n");
+        if (!hasNewTime && !attachment && !pastedText) {
+          await message.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Nothing to Update").setDescription("Usage: `!edit_daily_restock [HH:MM] [tokens]` — provide a new time and/or attach a file.").setColor(0xfaa61a)] });
+          return;
+        }
+        let normalizedTime = existing.time;
+        if (hasNewTime) {
+          const [hh, mm] = newTimeArg!.split(":").map(Number);
+          if (hh! > 23 || mm! > 59) { await message.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time").setDescription("Hours must be 0–23 and minutes 0–59.").setColor(0xed4245)] }); return; }
+          normalizedTime = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+        }
+        const loading = await message.reply("🔄 Updating daily restock...");
+        let rawTokens = existing.rawTokens;
+        if (attachment) {
+          if (!attachment.contentType?.startsWith("text") && !attachment.name.endsWith(".txt")) { await loading.edit("❌ Please attach a `.txt` file."); return; }
+          const r = await fetch(attachment.url);
+          if (!r.ok) { await loading.edit("❌ Could not download the file."); return; }
+          rawTokens = await r.text();
+        } else if (pastedText) {
+          rawTokens = pastedText;
+        }
+        writeDailyRestock({ ...existing, time: normalizedTime, rawTokens });
+        const tokenCount = rawTokens.split(/[\r\n]+/).filter(Boolean).length;
+        const changes: string[] = [];
+        if (hasNewTime) changes.push(`⏰ Time → **${normalizedTime} MST**`);
+        if (attachment || pastedText) changes.push(`📦 Tokens → **${tokenCount} tokens**`);
+        await loading.edit({
+          content: "",
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("✅ Daily Restock Updated")
+              .setDescription(changes.join("\n"))
+              .setColor(0x57f287)
+              .addFields(
+                { name: "⏰ Time (MST)", value: normalizedTime, inline: true },
+                { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
+              )
+              .setTimestamp()
+          ],
+        });
+        break;
+      }
 
       default:
         await message.reply(`❌ Unknown command. Use \`!help\` to see all commands.`);
