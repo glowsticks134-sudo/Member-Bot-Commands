@@ -40,6 +40,7 @@ const MAX_ROLES_PER_GUILD = 10;
 
 const serverJoinTimes = new Map<string, Date>();
 let botStartTime: Date | null = null;
+const liveMessages = new Map<"stock" | "status", { channelId: string; messageId: string }>();
 
 // ─── Data dir setup ───────────────────────────────────────────────────────────
 
@@ -1142,13 +1143,19 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       await interaction.reply({ embeds: [buildDashboardEmbed()], flags: 64 });
       break;
 
-    case "stock":
-      await interaction.reply({ embeds: [buildStockEmbed()], flags: 64 });
+    case "stock": {
+      await interaction.reply({ embeds: [buildStockEmbed()] });
+      const stockMsg = await interaction.fetchReply();
+      liveMessages.set("stock", { channelId: stockMsg.channelId, messageId: stockMsg.id });
       break;
+    }
 
-    case "status":
-      await interaction.reply({ embeds: [buildStatusEmbed(client)], flags: 64 });
+    case "status": {
+      await interaction.reply({ embeds: [buildStatusEmbed(client)] });
+      const statusMsg = await interaction.fetchReply();
+      liveMessages.set("status", { channelId: statusMsg.channelId, messageId: statusMsg.id });
       break;
+    }
 
     case "cleanup_servers": {
       if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
@@ -1400,13 +1407,17 @@ async function handlePrefix(message: Message, client: Client) {
         break;
       }
 
-      case "stock":
-        await message.reply({ embeds: [buildStockEmbed()] });
+      case "stock": {
+        const stockReply = await message.reply({ embeds: [buildStockEmbed()] });
+        liveMessages.set("stock", { channelId: stockReply.channelId, messageId: stockReply.id });
         break;
+      }
 
-      case "status":
-        await message.reply({ embeds: [buildStatusEmbed(client)] });
+      case "status": {
+        const statusReply = await message.reply({ embeds: [buildStatusEmbed(client)] });
+        liveMessages.set("status", { channelId: statusReply.channelId, messageId: statusReply.id });
         break;
+      }
 
       case "cleanup_servers": {
         if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
@@ -1496,6 +1507,20 @@ export async function startBot() {
       }
     }
   }, 3600_000);
+
+  setInterval(async () => {
+    for (const [type, ref] of liveMessages.entries()) {
+      try {
+        const channel = await client.channels.fetch(ref.channelId);
+        if (!channel || !channel.isTextBased()) { liveMessages.delete(type); continue; }
+        const msg = await channel.messages.fetch(ref.messageId);
+        const embed = type === "stock" ? buildStockEmbed() : buildStatusEmbed(client);
+        await msg.edit({ embeds: [embed] });
+      } catch {
+        liveMessages.delete(type);
+      }
+    }
+  }, 60_000);
 
   await client.login(BOT_TOKEN);
 }
