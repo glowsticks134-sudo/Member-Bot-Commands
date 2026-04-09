@@ -26,6 +26,7 @@ const AUTHS_FILE = path.join(DATA_DIR, "auths.txt");
 const OWNERS_FILE = path.join(DATA_DIR, "extra_owners.json");
 const ROLE_LIMITS_FILE = path.join(DATA_DIR, "role_limits.json");
 const CHANNEL_LOCKS_FILE = path.join(DATA_DIR, "channel_locks.json");
+const SCHEDULED_RESTOCKS_FILE = path.join(DATA_DIR, "scheduled_restocks.json");
 
 const BOT_TOKEN = process.env["DISCORD_BOT_TOKEN"]!;
 const CLIENT_ID = process.env["DISCORD_CLIENT_ID"]!;
@@ -204,6 +205,64 @@ export function clearChannelLock(guildId: string, type: ChannelLockType): boolea
   return true;
 }
 
+// ─── Scheduled restocks ───────────────────────────────────────────────────────
+
+type ScheduledRestock = {
+  id: string;
+  runAt: number;
+  rawTokens: string;
+  channelId: string;
+  guildId: string;
+  createdBy: string;
+};
+
+function readScheduledRestocks(): ScheduledRestock[] {
+  ensureDataDir();
+  if (!fs.existsSync(SCHEDULED_RESTOCKS_FILE)) return [];
+  try { return JSON.parse(fs.readFileSync(SCHEDULED_RESTOCKS_FILE, "utf-8")); } catch { return []; }
+}
+
+function writeScheduledRestocks(data: ScheduledRestock[]) {
+  ensureDataDir();
+  fs.writeFileSync(SCHEDULED_RESTOCKS_FILE, JSON.stringify(data, null, 2));
+}
+
+function addScheduledRestock(entry: ScheduledRestock) {
+  const data = readScheduledRestocks();
+  data.push(entry);
+  writeScheduledRestocks(data);
+}
+
+function removeScheduledRestock(id: string): boolean {
+  const data = readScheduledRestocks();
+  const next = data.filter((e) => e.id !== id);
+  if (next.length === data.length) return false;
+  writeScheduledRestocks(next);
+  return true;
+}
+
+function parseDuration(input: string): number | null {
+  const clean = input.trim().toLowerCase();
+  const full = clean.match(/^(?:(\d+)h)?(?:(\d+)m)?$/);
+  if (full && (full[1] || full[2])) {
+    const hours = parseInt(full[1] ?? "0", 10);
+    const minutes = parseInt(full[2] ?? "0", 10);
+    return (hours * 60 + minutes) * 60_000;
+  }
+  const minsOnly = clean.match(/^(\d+)$/);
+  if (minsOnly) return parseInt(minsOnly[1]!, 10) * 60_000;
+  return null;
+}
+
+function formatDuration(ms: number): string {
+  const totalMins = Math.floor(ms / 60_000);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
 // ─── Channel enforcement helper ────────────────────────────────────────────────
 
 function checkChannelLock(guildId: string, type: ChannelLockType, channelId: string): string | null {
@@ -284,6 +343,17 @@ const slashCommands = [
   new SlashCommandBuilder().setName("dashboard").setDescription("(Owner only) Get a private link to the owner dashboard"),
   new SlashCommandBuilder().setName("cleanup_servers").setDescription("(Owner only) Leave all servers the bot is currently in"),
   new SlashCommandBuilder().setName("clear_stock").setDescription("(Owner only) Remove all stored tokens"),
+  new SlashCommandBuilder()
+    .setName("schedule_restock")
+    .setDescription("(Owner only) Schedule a restock to run after a delay")
+    .addStringOption((o) => o.setName("time").setDescription("Delay before restock runs (e.g. 1h, 30m, 1h30m)").setRequired(true))
+    .addAttachmentOption((o) => o.setName("file").setDescription("Upload a .txt tokens file").setRequired(false))
+    .addStringOption((o) => o.setName("tokens").setDescription("Paste tokens directly (userId,access,refresh per line)").setRequired(false)),
+  new SlashCommandBuilder().setName("list_schedules").setDescription("(Owner only) List all pending scheduled restocks"),
+  new SlashCommandBuilder()
+    .setName("cancel_schedule")
+    .setDescription("(Owner only) Cancel a scheduled restock by ID")
+    .addStringOption((o) => o.setName("id").setDescription("Schedule ID to cancel").setRequired(true)),
   new SlashCommandBuilder().setName("stock").setDescription("Show the current number of stored tokens"),
   new SlashCommandBuilder().setName("status").setDescription("Show the bot's current online status and stats"),
 ].map((c) => c.toJSON());
@@ -335,7 +405,10 @@ function buildHelpEmbed(): EmbedBuilder {
           "`/count` or `!count` — Stored token count\n" +
           "`/list_users` or `!list_users` — List authenticated users\n" +
           "`/restock` or `!restock` — Add bulk tokens (owners only)\n" +
-          "`/clear_stock` or `!clear_stock` — Remove all stored tokens (owners only)",
+          "`/clear_stock` or `!clear_stock` — Remove all stored tokens (owners only)\n" +
+          "`/schedule_restock time:1h` or `!schedule_restock 1h` — Schedule a restock (owners only)\n" +
+          "`/list_schedules` or `!list_schedules` — View pending schedules (owners only)\n" +
+          "`/cancel_schedule id:ID` or `!cancel_schedule ID` — Cancel a schedule (owners only)",
         inline: false,
       },
       {
@@ -794,6 +867,29 @@ function buildDashboardEmbed(): EmbedBuilder {
     .setTimestamp();
 }
 
+function buildListSchedulesEmbed(): EmbedBuilder {
+  const schedules = readScheduledRestocks();
+  if (schedules.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("📅 Scheduled Restocks")
+      .setDescription("No pending scheduled restocks.\nUse `/schedule_restock` to add one.")
+      .setColor(0xfaa61a)
+      .setTimestamp();
+  }
+  const lines = schedules.map((s) => {
+    const remaining = s.runAt - Date.now();
+    const timeStr = remaining > 0 ? `in ${formatDuration(remaining)}` : "running soon...";
+    const tokenCount = s.rawTokens.split(/[\r\n]+/).filter(Boolean).length;
+    return `• \`${s.id}\` — **${tokenCount} tokens** — ${timeStr} — <@${s.createdBy}>`;
+  });
+  return new EmbedBuilder()
+    .setTitle(`📅 Scheduled Restocks (${schedules.length})`)
+    .setDescription(lines.join("\n"))
+    .setColor(0x5865f2)
+    .setFooter({ text: "Use /cancel_schedule id:ID to cancel one" })
+    .setTimestamp();
+}
+
 function doClearStock(): EmbedBuilder {
   const count = readAuthUsers().length;
   if (count === 0) {
@@ -1189,6 +1285,69 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       await interaction.reply({ embeds: [doClearStock()], flags: 64 });
       break;
 
+    case "schedule_restock": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      const timeStr = interaction.options.getString("time", true);
+      const delayMs = parseDuration(timeStr);
+      if (!delayMs || delayMs < 60_000) {
+        await interaction.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time").setDescription("Provide a valid duration like `30m`, `1h`, or `1h30m`. Minimum is 1 minute.").setColor(0xed4245)], flags: 64 });
+        return;
+      }
+      const attachment = interaction.options.getAttachment("file");
+      const pasted = interaction.options.getString("tokens");
+      if (!attachment && !pasted) { await interaction.reply({ embeds: [noTokensEmbed()], flags: 64 }); return; }
+      await interaction.deferReply({ flags: 64 });
+      let raw = "";
+      if (attachment) {
+        if (!attachment.contentType?.startsWith("text") && !attachment.name.endsWith(".txt")) { await interaction.editReply("❌ Please upload a `.txt` file."); return; }
+        const r = await fetch(attachment.url);
+        if (!r.ok) { await interaction.editReply("❌ Could not download the file."); return; }
+        raw = await r.text();
+      } else if (pasted) {
+        raw = pasted;
+      }
+      const tokenCount = raw.split(/[\r\n]+/).filter(Boolean).length;
+      const scheduleId = Date.now().toString(36).toUpperCase();
+      const runAt = Date.now() + delayMs;
+      addScheduledRestock({ id: scheduleId, runAt, rawTokens: raw, channelId, guildId, createdBy: userId });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("📅 Restock Scheduled")
+            .setDescription(`**${tokenCount} tokens** will be restocked in **${formatDuration(delayMs)}**.`)
+            .setColor(0x5865f2)
+            .addFields(
+              { name: "🆔 Schedule ID", value: `\`${scheduleId}\``, inline: true },
+              { name: "⏰ Runs At", value: `<t:${Math.floor(runAt / 1000)}:T>`, inline: true },
+              { name: "📦 Tokens", value: `${tokenCount}`, inline: true }
+            )
+            .setFooter({ text: "Use /cancel_schedule to cancel" })
+            .setTimestamp()
+        ],
+      });
+      break;
+    }
+
+    case "list_schedules":
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      await interaction.reply({ embeds: [buildListSchedulesEmbed()], flags: 64 });
+      break;
+
+    case "cancel_schedule": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      const id = interaction.options.getString("id", true).trim().toUpperCase();
+      const removed = removeScheduledRestock(id);
+      await interaction.reply({
+        embeds: [
+          removed
+            ? new EmbedBuilder().setTitle("✅ Schedule Cancelled").setDescription(`Schedule \`${id}\` has been removed.`).setColor(0x57f287).setTimestamp()
+            : new EmbedBuilder().setTitle("❌ Not Found").setDescription(`No schedule with ID \`${id}\` was found.`).setColor(0xed4245).setTimestamp()
+        ],
+        flags: 64,
+      });
+      break;
+    }
+
     default:
       await interaction.reply({ content: "❌ Unknown command.", flags: 64 });
   }
@@ -1456,6 +1615,71 @@ async function handlePrefix(message: Message, client: Client) {
         await message.reply({ embeds: [doClearStock()] });
         break;
 
+      case "schedule_restock": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        const timeArg = args[0]?.trim();
+        if (!timeArg) { await message.reply("❌ Usage: `!schedule_restock TIME` — e.g. `!schedule_restock 1h30m`"); return; }
+        const delayMs = parseDuration(timeArg);
+        if (!delayMs || delayMs < 60_000) {
+          await message.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time").setDescription("Provide a valid duration like `30m`, `1h`, or `1h30m`. Minimum is 1 minute.").setColor(0xed4245)] });
+          return;
+        }
+        const attachment: Attachment | undefined = message.attachments.first();
+        const pastedText = args.slice(1).join("\n");
+        if (!attachment && !pastedText) { await message.reply({ embeds: [noTokensEmbed()] }); return; }
+        const loading = await message.reply("🔄 Processing scheduled restock...");
+        let raw = "";
+        if (attachment) {
+          if (!attachment.contentType?.startsWith("text") && !attachment.name.endsWith(".txt")) { await loading.edit("❌ Please attach a `.txt` file."); return; }
+          const r = await fetch(attachment.url);
+          if (!r.ok) { await loading.edit("❌ Could not download the file."); return; }
+          raw = await r.text();
+        } else {
+          raw = pastedText;
+        }
+        const tokenCount = raw.split(/[\r\n]+/).filter(Boolean).length;
+        const scheduleId = Date.now().toString(36).toUpperCase();
+        const runAt = Date.now() + delayMs;
+        addScheduledRestock({ id: scheduleId, runAt, rawTokens: raw, channelId, guildId, createdBy: userId });
+        await loading.edit({
+          content: "",
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("📅 Restock Scheduled")
+              .setDescription(`**${tokenCount} tokens** will be restocked in **${formatDuration(delayMs)}**.`)
+              .setColor(0x5865f2)
+              .addFields(
+                { name: "🆔 Schedule ID", value: `\`${scheduleId}\``, inline: true },
+                { name: "⏰ Runs At", value: `<t:${Math.floor(runAt / 1000)}:T>`, inline: true },
+                { name: "📦 Tokens", value: `${tokenCount}`, inline: true }
+              )
+              .setFooter({ text: "Use !cancel_schedule ID to cancel" })
+              .setTimestamp()
+          ],
+        });
+        break;
+      }
+
+      case "list_schedules":
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        await message.reply({ embeds: [buildListSchedulesEmbed()] });
+        break;
+
+      case "cancel_schedule": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        const id = args[0]?.trim().toUpperCase();
+        if (!id) { await message.reply("❌ Usage: `!cancel_schedule ID`"); return; }
+        const removed = removeScheduledRestock(id);
+        await message.reply({
+          embeds: [
+            removed
+              ? new EmbedBuilder().setTitle("✅ Schedule Cancelled").setDescription(`Schedule \`${id}\` has been removed.`).setColor(0x57f287).setTimestamp()
+              : new EmbedBuilder().setTitle("❌ Not Found").setDescription(`No schedule with ID \`${id}\` was found.`).setColor(0xed4245).setTimestamp()
+          ],
+        });
+        break;
+      }
+
       default:
         await message.reply(`❌ Unknown command. Use \`!help\` to see all commands.`);
     }
@@ -1537,6 +1761,31 @@ export async function startBot() {
       }
     }
   }, 3600_000);
+
+  setInterval(async () => {
+    const pending = readScheduledRestocks();
+    const now = Date.now();
+    const due = pending.filter((s) => s.runAt <= now);
+    if (due.length === 0) return;
+    const remaining = pending.filter((s) => s.runAt > now);
+    writeScheduledRestocks(remaining);
+    for (const schedule of due) {
+      const resultEmbed = await doRestock(schedule.rawTokens);
+      const notifyEmbed = new EmbedBuilder()
+        .setTitle("📅 Scheduled Restock Ran")
+        .setDescription(`Schedule \`${schedule.id}\` (created by <@${schedule.createdBy}>) has completed.`)
+        .setColor(0x57f287)
+        .setTimestamp();
+      try {
+        const channel = await client.channels.fetch(schedule.channelId);
+        if (channel && channel.isTextBased()) {
+          await channel.send({ embeds: [notifyEmbed, resultEmbed] });
+        }
+      } catch (err) {
+        logger.warn({ err, scheduleId: schedule.id }, "Could not notify channel for scheduled restock");
+      }
+    }
+  }, 60_000);
 
   setInterval(async () => {
     for (const [type, ref] of liveMessages.entries()) {
