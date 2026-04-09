@@ -283,6 +283,7 @@ const slashCommands = [
   new SlashCommandBuilder().setName("listchannels").setDescription("List all channel locks for this server"),
   new SlashCommandBuilder().setName("dashboard").setDescription("(Owner only) Get a private link to the owner dashboard"),
   new SlashCommandBuilder().setName("cleanup_servers").setDescription("(Owner only) Leave all servers the bot is currently in"),
+  new SlashCommandBuilder().setName("clear_stock").setDescription("(Owner only) Remove all stored tokens"),
   new SlashCommandBuilder().setName("stock").setDescription("Show the current number of stored tokens"),
   new SlashCommandBuilder().setName("status").setDescription("Show the bot's current online status and stats"),
 ].map((c) => c.toJSON());
@@ -333,7 +334,8 @@ function buildHelpEmbed(): EmbedBuilder {
         value:
           "`/count` or `!count` — Stored token count\n" +
           "`/list_users` or `!list_users` — List authenticated users\n" +
-          "`/restock` or `!restock` — Add bulk tokens (owners only)",
+          "`/restock` or `!restock` — Add bulk tokens (owners only)\n" +
+          "`/clear_stock` or `!clear_stock` — Remove all stored tokens (owners only)",
         inline: false,
       },
       {
@@ -792,6 +794,24 @@ function buildDashboardEmbed(): EmbedBuilder {
     .setTimestamp();
 }
 
+function doClearStock(): EmbedBuilder {
+  const count = readAuthUsers().length;
+  if (count === 0) {
+    return new EmbedBuilder()
+      .setTitle("⚠️ Already Empty")
+      .setDescription("There are no tokens in stock to remove.")
+      .setColor(0xfaa61a)
+      .setTimestamp();
+  }
+  fs.writeFileSync(AUTHS_FILE, "");
+  return new EmbedBuilder()
+    .setTitle("🗑️ Stock Cleared")
+    .setDescription(`All **${count}** stored tokens have been removed.`)
+    .setColor(0xed4245)
+    .addFields({ name: "🗑️ Tokens Removed", value: `${count}`, inline: true })
+    .setTimestamp();
+}
+
 function buildStockEmbed(): EmbedBuilder {
   const count = readAuthUsers().length;
   const hasStock = count > 0;
@@ -1164,6 +1184,11 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       break;
     }
 
+    case "clear_stock":
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      await interaction.reply({ embeds: [doClearStock()], flags: 64 });
+      break;
+
     default:
       await interaction.reply({ content: "❌ Unknown command.", flags: 64 });
   }
@@ -1425,6 +1450,11 @@ async function handlePrefix(message: Message, client: Client) {
         await loading.edit({ content: "", embeds: [await doCleanupServers(client, guildId)] });
         break;
       }
+
+      case "clear_stock":
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        await message.reply({ embeds: [doClearStock()] });
+        break;
 
       default:
         await message.reply(`❌ Unknown command. Use \`!help\` to see all commands.`);
