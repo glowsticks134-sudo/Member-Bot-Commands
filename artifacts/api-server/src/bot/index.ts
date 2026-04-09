@@ -833,12 +833,12 @@ function buildStatusEmbed(client: Client): EmbedBuilder {
     .setTimestamp();
 }
 
-async function doCleanupServers(client: Client): Promise<EmbedBuilder> {
-  const guilds = [...client.guilds.cache.values()];
+async function doCleanupServers(client: Client, currentGuildId: string): Promise<EmbedBuilder> {
+  const guilds = [...client.guilds.cache.values()].filter((g) => g.id !== currentGuildId);
   if (guilds.length === 0) {
     return new EmbedBuilder()
-      .setTitle("⚠️ No Servers")
-      .setDescription("The bot is not in any servers.")
+      .setTitle("⚠️ No Other Servers")
+      .setDescription("The bot is not in any other servers to leave.")
       .setColor(0xfaa61a)
       .setTimestamp();
   }
@@ -1160,7 +1160,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
     case "cleanup_servers": {
       if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
       await interaction.deferReply({ flags: 64 });
-      await interaction.editReply({ embeds: [await doCleanupServers(client)] });
+      await interaction.editReply({ embeds: [await doCleanupServers(client, guildId)] });
       break;
     }
 
@@ -1422,7 +1422,7 @@ async function handlePrefix(message: Message, client: Client) {
       case "cleanup_servers": {
         if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
         const loading = await message.reply("🧹 Leaving all servers...");
-        await loading.edit({ content: "", embeds: [await doCleanupServers(client)] });
+        await loading.edit({ content: "", embeds: [await doCleanupServers(client, guildId)] });
         break;
       }
 
