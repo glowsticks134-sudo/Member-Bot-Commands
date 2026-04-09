@@ -27,6 +27,7 @@ const OWNERS_FILE = path.join(DATA_DIR, "extra_owners.json");
 const ROLE_LIMITS_FILE = path.join(DATA_DIR, "role_limits.json");
 const CHANNEL_LOCKS_FILE = path.join(DATA_DIR, "channel_locks.json");
 const SCHEDULED_RESTOCKS_FILE = path.join(DATA_DIR, "scheduled_restocks.json");
+const DAILY_RESTOCK_FILE = path.join(DATA_DIR, "daily_restock.json");
 
 const BOT_TOKEN = process.env["DISCORD_BOT_TOKEN"]!;
 const CLIENT_ID = process.env["DISCORD_CLIENT_ID"]!;
@@ -263,6 +264,33 @@ function formatDuration(ms: number): string {
   return `${m}m`;
 }
 
+// ─── Daily restock ────────────────────────────────────────────────────────────
+
+type DailyRestock = {
+  time: string;
+  rawTokens: string;
+  channelId: string;
+  guildId: string;
+  createdBy: string;
+  lastRanDate: string | null;
+};
+
+function readDailyRestock(): DailyRestock | null {
+  ensureDataDir();
+  if (!fs.existsSync(DAILY_RESTOCK_FILE)) return null;
+  try { return JSON.parse(fs.readFileSync(DAILY_RESTOCK_FILE, "utf-8")); } catch { return null; }
+}
+
+function writeDailyRestock(data: DailyRestock | null) {
+  ensureDataDir();
+  if (data === null) { if (fs.existsSync(DAILY_RESTOCK_FILE)) fs.unlinkSync(DAILY_RESTOCK_FILE); return; }
+  fs.writeFileSync(DAILY_RESTOCK_FILE, JSON.stringify(data, null, 2));
+}
+
+function getTodayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // ─── Channel enforcement helper ────────────────────────────────────────────────
 
 function checkChannelLock(guildId: string, type: ChannelLockType, channelId: string): string | null {
@@ -354,6 +382,14 @@ const slashCommands = [
     .setName("cancel_schedule")
     .setDescription("(Owner only) Cancel a scheduled restock by ID")
     .addStringOption((o) => o.setName("id").setDescription("Schedule ID to cancel").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("set_daily_restock")
+    .setDescription("(Owner only) Set a daily restock that runs at the same time every day")
+    .addStringOption((o) => o.setName("time").setDescription("Time to run daily in 24h format (e.g. 14:00)").setRequired(true))
+    .addAttachmentOption((o) => o.setName("file").setDescription("Upload a .txt tokens file").setRequired(false))
+    .addStringOption((o) => o.setName("tokens").setDescription("Paste tokens directly (userId,access,refresh per line)").setRequired(false)),
+  new SlashCommandBuilder().setName("cancel_daily_restock").setDescription("(Owner only) Cancel the daily restock"),
+  new SlashCommandBuilder().setName("daily_restock_status").setDescription("(Owner only) Show the current daily restock configuration"),
   new SlashCommandBuilder().setName("stock").setDescription("Show the current number of stored tokens"),
   new SlashCommandBuilder().setName("status").setDescription("Show the bot's current online status and stats"),
 ].map((c) => c.toJSON());
@@ -408,7 +444,10 @@ function buildHelpEmbed(): EmbedBuilder {
           "`/clear_stock` or `!clear_stock` — Remove all stored tokens (owners only)\n" +
           "`/schedule_restock time:1h` or `!schedule_restock 1h` — Schedule a restock (owners only)\n" +
           "`/list_schedules` or `!list_schedules` — View pending schedules (owners only)\n" +
-          "`/cancel_schedule id:ID` or `!cancel_schedule ID` — Cancel a schedule (owners only)",
+          "`/cancel_schedule id:ID` or `!cancel_schedule ID` — Cancel a schedule (owners only)\n" +
+          "`/set_daily_restock time:14:00` or `!set_daily_restock 14:00` — Set a daily restock (owners only)\n" +
+          "`/cancel_daily_restock` or `!cancel_daily_restock` — Cancel the daily restock (owners only)\n" +
+          "`/daily_restock_status` or `!daily_restock_status` — Show daily restock config (owners only)",
         inline: false,
       },
       {
@@ -864,6 +903,33 @@ function buildDashboardEmbed(): EmbedBuilder {
     .setColor(0x5865f2)
     .setURL(dashboardUrl)
     .setFooter({ text: "Only visible to you • Dashboard sessions last 8 hours" })
+    .setTimestamp();
+}
+
+function buildDailyRestockStatusEmbed(): EmbedBuilder {
+  const config = readDailyRestock();
+  if (!config) {
+    return new EmbedBuilder()
+      .setTitle("📅 Daily Restock")
+      .setDescription("No daily restock configured.\nUse `/set_daily_restock` to set one up.")
+      .setColor(0xfaa61a)
+      .setTimestamp();
+  }
+  const tokenCount = config.rawTokens.split(/[\r\n]+/).filter(Boolean).length;
+  const lastRan = config.lastRanDate ?? "Never";
+  const today = getTodayDateString();
+  const ranToday = config.lastRanDate === today;
+  return new EmbedBuilder()
+    .setTitle("📅 Daily Restock Active")
+    .setColor(0x5865f2)
+    .addFields(
+      { name: "⏰ Time (UTC)", value: config.time, inline: true },
+      { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
+      { name: "✅ Ran Today", value: ranToday ? "Yes" : "No", inline: true },
+      { name: "📆 Last Ran", value: lastRan, inline: true },
+      { name: "👤 Set By", value: `<@${config.createdBy}>`, inline: true },
+    )
+    .setFooter({ text: "Use /cancel_daily_restock to remove" })
     .setTimestamp();
 }
 
@@ -1356,6 +1422,68 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       break;
     }
 
+    case "set_daily_restock": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      const timeInput = interaction.options.getString("time", true).trim();
+      if (!/^\d{1,2}:\d{2}$/.test(timeInput)) {
+        await interaction.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time Format").setDescription("Use 24-hour format like `14:00` or `08:30`.").setColor(0xed4245)], flags: 64 });
+        return;
+      }
+      const [hh, mm] = timeInput.split(":").map(Number);
+      if (hh! > 23 || mm! > 59) {
+        await interaction.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time").setDescription("Hours must be 0–23 and minutes 0–59.").setColor(0xed4245)], flags: 64 });
+        return;
+      }
+      const normalizedTime = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      const attachment = interaction.options.getAttachment("file");
+      const pasted = interaction.options.getString("tokens");
+      if (!attachment && !pasted) { await interaction.reply({ embeds: [noTokensEmbed()], flags: 64 }); return; }
+      await interaction.deferReply({ flags: 64 });
+      let raw = "";
+      if (attachment) {
+        if (!attachment.contentType?.startsWith("text") && !attachment.name.endsWith(".txt")) { await interaction.editReply("❌ Please upload a `.txt` file."); return; }
+        const r = await fetch(attachment.url);
+        if (!r.ok) { await interaction.editReply("❌ Could not download the file."); return; }
+        raw = await r.text();
+      } else if (pasted) {
+        raw = pasted;
+      }
+      const tokenCount = raw.split(/[\r\n]+/).filter(Boolean).length;
+      writeDailyRestock({ time: normalizedTime, rawTokens: raw, channelId, guildId, createdBy: userId, lastRanDate: null });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("📅 Daily Restock Set")
+            .setDescription(`The bot will restock **${tokenCount} tokens** every day at **${normalizedTime} UTC**.`)
+            .setColor(0x57f287)
+            .addFields(
+              { name: "⏰ Time (UTC)", value: normalizedTime, inline: true },
+              { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
+            )
+            .setFooter({ text: "Use /cancel_daily_restock to stop it" })
+            .setTimestamp()
+        ],
+      });
+      break;
+    }
+
+    case "cancel_daily_restock": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      const existing = readDailyRestock();
+      if (!existing) {
+        await interaction.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Nothing to Cancel").setDescription("No daily restock is currently configured.").setColor(0xfaa61a)], flags: 64 });
+        return;
+      }
+      writeDailyRestock(null);
+      await interaction.reply({ embeds: [new EmbedBuilder().setTitle("✅ Daily Restock Cancelled").setDescription("The daily restock has been removed.").setColor(0xed4245).setTimestamp()], flags: 64 });
+      break;
+    }
+
+    case "daily_restock_status":
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      await interaction.reply({ embeds: [buildDailyRestockStatusEmbed()], flags: 64 });
+      break;
+
     default:
       await interaction.reply({ content: "❌ Unknown command.", flags: 64 });
   }
@@ -1688,6 +1816,60 @@ async function handlePrefix(message: Message, client: Client) {
         break;
       }
 
+      case "set_daily_restock": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        const timeArg = args[0]?.trim();
+        if (!timeArg || !/^\d{1,2}:\d{2}$/.test(timeArg)) { await message.reply("❌ Usage: `!set_daily_restock HH:MM` — e.g. `!set_daily_restock 14:00`"); return; }
+        const [hh, mm] = timeArg.split(":").map(Number);
+        if (hh! > 23 || mm! > 59) { await message.reply({ embeds: [new EmbedBuilder().setTitle("❌ Invalid Time").setDescription("Hours must be 0–23 and minutes 0–59.").setColor(0xed4245)] }); return; }
+        const normalizedTime = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+        const attachment: Attachment | undefined = message.attachments.first();
+        const pastedText = args.slice(1).join("\n");
+        if (!attachment && !pastedText) { await message.reply({ embeds: [noTokensEmbed()] }); return; }
+        const loading = await message.reply("🔄 Setting up daily restock...");
+        let raw = "";
+        if (attachment) {
+          if (!attachment.contentType?.startsWith("text") && !attachment.name.endsWith(".txt")) { await loading.edit("❌ Please attach a `.txt` file."); return; }
+          const r = await fetch(attachment.url);
+          if (!r.ok) { await loading.edit("❌ Could not download the file."); return; }
+          raw = await r.text();
+        } else {
+          raw = pastedText;
+        }
+        const tokenCount = raw.split(/[\r\n]+/).filter(Boolean).length;
+        writeDailyRestock({ time: normalizedTime, rawTokens: raw, channelId, guildId, createdBy: userId, lastRanDate: null });
+        await loading.edit({
+          content: "",
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("📅 Daily Restock Set")
+              .setDescription(`The bot will restock **${tokenCount} tokens** every day at **${normalizedTime} UTC**.`)
+              .setColor(0x57f287)
+              .addFields(
+                { name: "⏰ Time (UTC)", value: normalizedTime, inline: true },
+                { name: "📦 Tokens", value: `${tokenCount}`, inline: true },
+              )
+              .setFooter({ text: "Use !cancel_daily_restock to stop it" })
+              .setTimestamp()
+          ],
+        });
+        break;
+      }
+
+      case "cancel_daily_restock": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        const existing = readDailyRestock();
+        if (!existing) { await message.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Nothing to Cancel").setDescription("No daily restock is currently configured.").setColor(0xfaa61a)] }); return; }
+        writeDailyRestock(null);
+        await message.reply({ embeds: [new EmbedBuilder().setTitle("✅ Daily Restock Cancelled").setDescription("The daily restock has been removed.").setColor(0xed4245).setTimestamp()] });
+        break;
+      }
+
+      case "daily_restock_status":
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        await message.reply({ embeds: [buildDailyRestockStatusEmbed()] });
+        break;
+
       default:
         await message.reply(`❌ Unknown command. Use \`!help\` to see all commands.`);
     }
@@ -1769,6 +1951,33 @@ export async function startBot() {
       }
     }
   }, 3600_000);
+
+  setInterval(async () => {
+    const daily = readDailyRestock();
+    if (daily) {
+      const now = new Date();
+      const currentTime = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
+      const today = getTodayDateString();
+      if (currentTime === daily.time && daily.lastRanDate !== today) {
+        daily.lastRanDate = today;
+        writeDailyRestock(daily);
+        const resultEmbed = await doRestock(daily.rawTokens);
+        const notifyEmbed = new EmbedBuilder()
+          .setTitle("📅 Daily Restock Ran")
+          .setDescription(`Daily restock at **${daily.time} UTC** has completed.`)
+          .setColor(0x57f287)
+          .setTimestamp();
+        try {
+          const channel = await client.channels.fetch(daily.channelId);
+          if (channel && channel.isTextBased()) {
+            await channel.send({ embeds: [notifyEmbed, resultEmbed] });
+          }
+        } catch (err) {
+          logger.warn({ err }, "Could not notify channel for daily restock");
+        }
+      }
+    }
+  }, 60_000);
 
   setInterval(async () => {
     const pending = readScheduledRestocks();
