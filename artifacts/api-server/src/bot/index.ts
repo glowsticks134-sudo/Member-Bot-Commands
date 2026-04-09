@@ -39,6 +39,7 @@ const PREFIX = "!";
 const MAX_ROLES_PER_GUILD = 10;
 
 const serverJoinTimes = new Map<string, Date>();
+let botStartTime: Date | null = null;
 
 // ─── Data dir setup ───────────────────────────────────────────────────────────
 
@@ -280,6 +281,9 @@ const slashCommands = [
     ),
   new SlashCommandBuilder().setName("listchannels").setDescription("List all channel locks for this server"),
   new SlashCommandBuilder().setName("dashboard").setDescription("(Owner only) Get a private link to the owner dashboard"),
+  new SlashCommandBuilder().setName("cleanup_servers").setDescription("(Owner only) Leave all servers the bot is currently in"),
+  new SlashCommandBuilder().setName("stock").setDescription("Show the current number of stored tokens"),
+  new SlashCommandBuilder().setName("status").setDescription("Show the bot's current online status and stats"),
 ].map((c) => c.toJSON());
 
 async function registerCommands(guildIds: string[] = []) {
@@ -363,6 +367,9 @@ function buildHelpEmbed(): EmbedBuilder {
         value:
           "`/invite` or `!invite` — Bot invite link\n" +
           "`/add` or `!add` — Add bot embed\n" +
+          "`/stock` or `!stock` — Show current token stock\n" +
+          "`/status` or `!status` — Show bot online status & stats\n" +
+          "`/cleanup_servers` or `!cleanup_servers` — Leave all servers (owners only)\n" +
           "`/help` or `!help` — Show this message",
         inline: false,
       },
@@ -784,6 +791,78 @@ function buildDashboardEmbed(): EmbedBuilder {
     .setTimestamp();
 }
 
+function buildStockEmbed(): EmbedBuilder {
+  const count = readAuthUsers().length;
+  const hasStock = count > 0;
+  return new EmbedBuilder()
+    .setTitle(hasStock ? "✅ Stock Available" : "❌ Out of Stock")
+    .setDescription(
+      hasStock
+        ? `There are currently **${count}** tokens in stock and ready to use.`
+        : "There are **no tokens** in stock.\n\nUse `/restock` or `!restock` to add tokens."
+    )
+    .setColor(hasStock ? 0x57f287 : 0xed4245)
+    .addFields({ name: "📦 Tokens in Stock", value: `${count}`, inline: true })
+    .setTimestamp();
+}
+
+function buildStatusEmbed(client: Client): EmbedBuilder {
+  const online = client.user !== null;
+  const uptime = botStartTime
+    ? (() => {
+        const ms = Date.now() - botStartTime.getTime();
+        const d = Math.floor(ms / 86400000);
+        const h = Math.floor((ms % 86400000) / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        return `${d}d ${h}h ${m}m`;
+      })()
+    : "Unknown";
+  const stock = readAuthUsers().length;
+  return new EmbedBuilder()
+    .setTitle(online ? "🟢 Bot Online" : "🔴 Bot Offline")
+    .setColor(online ? 0x57f287 : 0xed4245)
+    .addFields(
+      { name: "📡 Status", value: online ? "Online" : "Offline", inline: true },
+      { name: "⏱️ Uptime", value: uptime, inline: true },
+      { name: "🌐 Servers", value: `${client.guilds.cache.size}`, inline: true },
+      { name: "📦 Tokens in Stock", value: `${stock}`, inline: true },
+      { name: "🏷️ Bot Tag", value: client.user?.tag ?? "Unknown", inline: true },
+    )
+    .setThumbnail(client.user?.displayAvatarURL() ?? null)
+    .setTimestamp();
+}
+
+async function doCleanupServers(client: Client): Promise<EmbedBuilder> {
+  const guilds = [...client.guilds.cache.values()];
+  if (guilds.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("⚠️ No Servers")
+      .setDescription("The bot is not in any servers.")
+      .setColor(0xfaa61a)
+      .setTimestamp();
+  }
+  let left = 0, failed = 0;
+  for (const guild of guilds) {
+    try {
+      await guild.leave();
+      serverJoinTimes.delete(guild.id);
+      left++;
+    } catch {
+      failed++;
+    }
+  }
+  return new EmbedBuilder()
+    .setTitle("🧹 Cleanup Complete")
+    .setDescription(`The bot has left all servers.`)
+    .setColor(failed === 0 ? 0x57f287 : 0xfaa61a)
+    .addFields(
+      { name: "✅ Left", value: `${left}`, inline: true },
+      { name: "❌ Failed", value: `${failed}`, inline: true },
+      { name: "📊 Total", value: `${guilds.length}`, inline: true }
+    )
+    .setTimestamp();
+}
+
 // ─── Slash command router ─────────────────────────────────────────────────────
 
 async function handleSlash(interaction: ChatInputCommandInteraction, client: Client) {
@@ -842,6 +921,18 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       const lockedCh = checkChannelLock(guildId, "djoin", channelId);
       if (lockedCh) {
         await interaction.reply({ embeds: [channelLockedEmbed(lockedCh, "djoin")], flags: 64 });
+        return;
+      }
+      if (readAuthUsers().length === 0) {
+        await interaction.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("❌ No Stock")
+              .setDescription("There are no tokens in stock. Use `/restock` or `!restock` to add tokens before running djoin.")
+              .setColor(0xed4245)
+          ],
+          flags: 64,
+        });
         return;
       }
       if (!readAuthUsers().some((u) => u.userId === userId)) {
@@ -1051,6 +1142,21 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       await interaction.reply({ embeds: [buildDashboardEmbed()], flags: 64 });
       break;
 
+    case "stock":
+      await interaction.reply({ embeds: [buildStockEmbed()], flags: 64 });
+      break;
+
+    case "status":
+      await interaction.reply({ embeds: [buildStatusEmbed(client)], flags: 64 });
+      break;
+
+    case "cleanup_servers": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      await interaction.deferReply({ flags: 64 });
+      await interaction.editReply({ embeds: [await doCleanupServers(client)] });
+      break;
+    }
+
     default:
       await interaction.reply({ content: "❌ Unknown command.", flags: 64 });
   }
@@ -1118,6 +1224,17 @@ async function handlePrefix(message: Message, client: Client) {
       case "djoin": {
         const lockedCh = checkChannelLock(guildId, "djoin", channelId);
         if (lockedCh) { await message.reply({ embeds: [channelLockedEmbed(lockedCh, "djoin")] }); return; }
+        if (readAuthUsers().length === 0) {
+          await message.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("❌ No Stock")
+                .setDescription("There are no tokens in stock. Use `/restock` or `!restock` to add tokens before running djoin.")
+                .setColor(0xed4245)
+            ],
+          });
+          return;
+        }
         if (!readAuthUsers().some((u) => u.userId === userId)) {
           await message.reply({ embeds: [notAuthedEmbed()] }); return;
         }
@@ -1283,6 +1400,21 @@ async function handlePrefix(message: Message, client: Client) {
         break;
       }
 
+      case "stock":
+        await message.reply({ embeds: [buildStockEmbed()] });
+        break;
+
+      case "status":
+        await message.reply({ embeds: [buildStatusEmbed(client)] });
+        break;
+
+      case "cleanup_servers": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        const loading = await message.reply("🧹 Leaving all servers...");
+        await loading.edit({ content: "", embeds: [await doCleanupServers(client)] });
+        break;
+      }
+
       default:
         await message.reply(`❌ Unknown command. Use \`!help\` to see all commands.`);
     }
@@ -1311,6 +1443,7 @@ export async function startBot() {
 
   client.once("ready", async () => {
     logger.info({ tag: client.user?.tag }, "Discord bot ready");
+    botStartTime = new Date();
     setClient(client);
     const guildIds: string[] = [];
     for (const guild of client.guilds.cache.values()) {
