@@ -1,12 +1,6 @@
 #!/bin/bash
 set -e
 
-echo "==> Building latest bot..."
-pnpm --filter @workspace/api-server run build
-
-echo "==> Removing source maps..."
-rm -f artifacts/api-server/dist/*.map
-
 echo "==> Pushing to GitHub..."
 git config user.email "bot@replit.com"
 git config user.name "Memberty Bot"
@@ -17,4 +11,4 @@ git push origin main
 
 echo ""
 echo "Done! Your GitHub is up to date."
-echo "Go to HeavenCloud and click Reinstall to apply the update."
+echo "Railway will now auto-deploy the update."
