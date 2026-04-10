@@ -33,9 +33,11 @@ const BOT_TOKEN = process.env["DISCORD_BOT_TOKEN"]!;
 const CLIENT_ID = process.env["DISCORD_CLIENT_ID"]!;
 const CLIENT_SECRET = process.env["DISCORD_CLIENT_SECRET"]!;
 const REPLIT_DOMAIN = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim();
-const REDIRECT_URI = REPLIT_DOMAIN
-  ? `https://${REPLIT_DOMAIN}/redirect`
-  : "http://localhost:8080/redirect";
+const REDIRECT_URI =
+  process.env["REDIRECT_URI"] ??
+  (REPLIT_DOMAIN
+    ? `https://${REPLIT_DOMAIN}/redirect`
+    : `http://localhost:${process.env["PORT"] ?? 8080}/redirect`);
 const PREFIX = "!";
 
 const MAX_ROLES_PER_GUILD = 10;

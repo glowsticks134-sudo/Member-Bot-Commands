@@ -59,11 +59,15 @@ The bot runs inside `artifacts/api-server` alongside the Express server. It star
 | `/listchannels` | List all channel locks |
 
 ### Data Files
-Stored in `artifacts/api-server/data/`:
-- `auths.txt` — userId,accessToken,refreshToken (one per line)
+Stored in `artifacts/data/` (gitignored — never committed, created at runtime):
+- `auths.txt` — userId,accessToken,refreshToken (one per line, **sensitive**)
 - `role_limits.json` — per-guild role limits (max 10 per guild)
 - `channel_locks.json` — per-guild channel restrictions for djoin/auth
 - `extra_owners.json` — per-guild extra owner user IDs
+- `scheduled_restocks.json` — pending scheduled restocks
+- `daily_restock.json` — daily restock config
+
+> When self-hosting, make sure `artifacts/data/` is on a persistent volume so data survives restarts.
 
 ## Owner Dashboard
 
@@ -92,9 +96,13 @@ All under `/api/dashboard/*`:
 - `GET/POST/DELETE /channels/*` — channel lock CRUD
 - `GET/POST/DELETE /owners/*` — extra owner management
 
-### Required Secrets
+### Required Environment Variables
 - `DISCORD_BOT_TOKEN` — Bot token from Discord Developer Portal
 - `DISCORD_CLIENT_ID` — Application Client ID
 - `DISCORD_CLIENT_SECRET` — Application Client Secret
+- `PORT` — Port the server listens on (default: `8080`)
+- `REDIRECT_URI` — Full public URL of the OAuth2 redirect endpoint (e.g. `https://yourdomain.com/redirect`). On Replit this is auto-derived from `REPLIT_DOMAINS`. Self-hosters must set this explicitly and register it in the Discord Developer Portal under OAuth2 → Redirects.
+
+See `.env.example` for a full reference.
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
