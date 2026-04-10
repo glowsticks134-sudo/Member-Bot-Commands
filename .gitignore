@@ -5,6 +5,10 @@ dist
 tmp
 out-tsc
 *.tsbuildinfo
+
+# Allow the pre-built api-server dist so hosting panels can run it directly
+!artifacts/api-server/dist/
+artifacts/api-server/dist/*.map
 .expo
 .expo-shared
 
