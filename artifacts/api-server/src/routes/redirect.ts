@@ -201,15 +201,35 @@ router.get("/redirect", (req, res) => {
   <script>
     function copyCode() {
       const code = document.getElementById('code').innerText;
-      navigator.clipboard.writeText(code).then(() => {
-        const btn = document.getElementById('copyBtn');
+      const btn = document.getElementById('copyBtn');
+      function markCopied() {
         btn.textContent = '✅ Copied!';
         btn.classList.add('copied');
         setTimeout(() => {
           btn.textContent = '📋 Copy Code';
           btn.classList.remove('copied');
         }, 2000);
-      });
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(markCopied).catch(() => {
+          fallbackCopy(code);
+          markCopied();
+        });
+      } else {
+        fallbackCopy(code);
+        markCopied();
+      }
+    }
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
     }
   </script>
 </body>

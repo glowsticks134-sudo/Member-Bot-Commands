@@ -36,7 +36,7 @@ const REPLIT_DOMAIN = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim(
 const REDIRECT_URI =
   process.env["REDIRECT_URI"] ??
   (REPLIT_DOMAIN
-    ? `https://${REPLIT_DOMAIN}/redirect`
+    ? `https://${REPLIT_DOMAIN}/api/redirect`
     : `http://localhost:${process.env["PORT"] ?? 8080}/redirect`);
 const PREFIX = "!";
 
