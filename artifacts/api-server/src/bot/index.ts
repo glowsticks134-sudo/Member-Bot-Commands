@@ -30,12 +30,12 @@ const SCHEDULED_RESTOCKS_FILE = path.join(DATA_DIR, "scheduled_restocks.json");
 const DAILY_RESTOCK_FILE = path.join(DATA_DIR, "daily_restock.json");
 
 const BOT_TOKEN = process.env["DISCORD_BOT_TOKEN"]!;
-const CLIENT_ID = process.env["DISCORD_CLIENT_ID"]!;
-const CLIENT_SECRET = process.env["DISCORD_CLIENT_SECRET"]!;
+export const CLIENT_ID = process.env["DISCORD_CLIENT_ID"]!;
+export const CLIENT_SECRET = process.env["DISCORD_CLIENT_SECRET"]!;
 const REPLIT_DOMAIN = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim();
 const RAILWAY_DOMAIN = process.env["RAILWAY_PUBLIC_DOMAIN"]?.trim();
 const PUBLIC_DOMAIN = REPLIT_DOMAIN ? `https://${REPLIT_DOMAIN}` : RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null;
-const REDIRECT_URI =
+export const REDIRECT_URI =
   process.env["REDIRECT_URI"] ??
   (PUBLIC_DOMAIN
     ? `${PUBLIC_DOMAIN}/redirect`
@@ -71,7 +71,7 @@ export function readAuthUsers(): Array<{ userId: string; accessToken: string; re
     .filter(Boolean) as Array<{ userId: string; accessToken: string; refreshToken: string }>;
 }
 
-function saveUserAuth(userId: string, accessToken: string, refreshToken: string) {
+export function saveUserAuth(userId: string, accessToken: string, refreshToken: string) {
   ensureDataDir();
   let lines = fs.existsSync(AUTHS_FILE)
     ? fs.readFileSync(AUTHS_FILE, "utf-8").split("\n").filter(Boolean)
@@ -508,13 +508,14 @@ function buildHelpEmbed(): EmbedBuilder {
     .setTimestamp();
 }
 
-function buildGetTokenEmbed(): EmbedBuilder {
+function buildGetTokenEmbed(userId: string): EmbedBuilder {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: "code",
     redirect_uri: REDIRECT_URI,
     scope: "identify guilds.join",
     prompt: "consent",
+    state: userId,
   });
   const oauthUrl = `https://discord.com/oauth2/authorize?${params.toString()}`;
   return new EmbedBuilder()
@@ -1085,7 +1086,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       break;
 
     case "get_token":
-      await interaction.reply({ embeds: [buildGetTokenEmbed()], flags: 64 });
+      await interaction.reply({ embeds: [buildGetTokenEmbed(userId)], flags: 64 });
       break;
 
     case "auth": {
@@ -1592,7 +1593,7 @@ async function handlePrefix(message: Message, client: Client) {
         break;
 
       case "get_token":
-        await message.reply({ embeds: [buildGetTokenEmbed()] });
+        await message.reply({ embeds: [buildGetTokenEmbed(message.author.id)] });
         break;
 
       case "auth": {
