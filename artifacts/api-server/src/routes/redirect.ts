@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, saveUserAuth } from "../bot/index";
+import { CLIENT_ID, CLIENT_SECRET, saveUserAuth } from "../bot/index";
 
 const router: IRouter = Router();
 
@@ -7,6 +7,13 @@ router.get("/redirect", async (req, res) => {
   const code = req.query["code"] as string | undefined;
   const error = req.query["error"] as string | undefined;
   const userId = req.query["state"] as string | undefined;
+
+  // Derive the redirect_uri from the actual incoming request so it always
+  // matches exactly what Discord received when the OAuth link was generated,
+  // regardless of which server (Replit, Railway, etc.) is handling this request.
+  const proto = (req.headers["x-forwarded-proto"] as string) ?? req.protocol;
+  const host = (req.headers["x-forwarded-host"] as string) ?? req.headers.host ?? "";
+  const redirectUri = process.env["REDIRECT_URI"] ?? `${proto}://${host}/redirect`;
 
   if (error) {
     res.send(`<!DOCTYPE html>
@@ -70,7 +77,7 @@ router.get("/redirect", async (req, res) => {
       client_secret: CLIENT_SECRET,
       grant_type: "authorization_code",
       code,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: redirectUri,
     });
     const tokenRes = await fetch("https://discord.com/api/v10/oauth2/token", {
       method: "POST",
