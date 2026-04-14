@@ -33,10 +33,12 @@ const BOT_TOKEN = process.env["DISCORD_BOT_TOKEN"]!;
 const CLIENT_ID = process.env["DISCORD_CLIENT_ID"]!;
 const CLIENT_SECRET = process.env["DISCORD_CLIENT_SECRET"]!;
 const REPLIT_DOMAIN = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim();
+const RAILWAY_DOMAIN = process.env["RAILWAY_PUBLIC_DOMAIN"]?.trim();
+const PUBLIC_DOMAIN = REPLIT_DOMAIN ? `https://${REPLIT_DOMAIN}` : RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null;
 const REDIRECT_URI =
   process.env["REDIRECT_URI"] ??
-  (REPLIT_DOMAIN
-    ? `https://${REPLIT_DOMAIN}/api/redirect`
+  (PUBLIC_DOMAIN
+    ? `${PUBLIC_DOMAIN}/redirect`
     : `http://localhost:${process.env["PORT"] ?? 8080}/redirect`);
 const PREFIX = "!";
 
@@ -904,8 +906,8 @@ function channelLockedEmbed(channelId: string, cmd: string): EmbedBuilder {
 }
 
 function buildDashboardEmbed(): EmbedBuilder {
-  const dashboardUrl = REPLIT_DOMAIN
-    ? `https://${REPLIT_DOMAIN}/dashboard/`
+  const dashboardUrl = PUBLIC_DOMAIN
+    ? `${PUBLIC_DOMAIN}/dashboard/`
     : "http://localhost:3000/dashboard/";
   return new EmbedBuilder()
     .setTitle("🖥️ Owner Dashboard")
