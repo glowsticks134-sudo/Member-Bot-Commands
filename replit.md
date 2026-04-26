@@ -60,12 +60,25 @@ The bot runs inside `artifacts/api-server` alongside the Express server. It star
 
 ### Data Files
 Stored in `artifacts/data/` (gitignored — never committed, created at runtime):
-- `auths.txt` — userId,accessToken,refreshToken (one per line, **sensitive**)
+- `auths.txt` — bulk-imported "stock" tokens, format `userId,accessToken,refreshToken` (one per line, **sensitive**). Populated by `/restock`, `/schedule_restock`, daily restock.
+- `stored_tokens.txt` — individual OAuth-authorized users' tokens, same format. Populated by the OAuth redirect (auto-exchange) and `/auth code:CODE`.
 - `role_limits.json` — per-guild role limits (max 10 per guild)
 - `channel_locks.json` — per-guild channel restrictions for djoin/auth
 - `owner_roles.json` — per-guild role IDs that grant owner-level access (role-based ownership survives container restarts)
 - `scheduled_restocks.json` — pending scheduled restocks
 - `daily_restock.json` — daily restock config
+
+### Authorization flow
+
+When a user clicks the OAuth link from `/get_token`, Discord redirects them to
+`/redirect?code=...&state=USER_ID`. The server-side handler in
+`src/routes/redirect.ts` automatically exchanges the code for a token, saves
+it to `stored_tokens.txt`, and DMs the user a confirmation embed via the bot.
+The page also displays the raw code as a fallback in case the user wants to
+re-enter it manually with `/auth code:CODE` (which writes to the same
+stored-tokens file). `/djoin` accepts users from either `stored_tokens.txt`
+or `auths.txt` for the self-auth check, and the mass-join push uses both
+files combined (deduped by userId, with stored-tokens taking precedence).
 
 > Global owners are hardcoded in `artifacts/api-server/src/bot/index.ts` as `HARDCODED_OWNERS`. To grant or revoke a global owner, edit that array and redeploy.
 >

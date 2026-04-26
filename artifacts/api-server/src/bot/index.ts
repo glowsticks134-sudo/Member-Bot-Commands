@@ -26,6 +26,7 @@ import { setClient } from "./botState";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "../../data");
 const AUTHS_FILE = path.join(DATA_DIR, "auths.txt");
+const STORED_TOKENS_FILE = path.join(DATA_DIR, "stored_tokens.txt");
 const OWNER_ROLES_FILE = path.join(DATA_DIR, "owner_roles.json");
 
 // Hardcoded global owner user IDs. Anyone in this list has owner-level access
@@ -104,6 +105,93 @@ export function deleteUserAuth(userId: string) {
   if (!fs.existsSync(AUTHS_FILE)) return;
   const lines = fs.readFileSync(AUTHS_FILE, "utf-8").split("\n").filter(Boolean).filter((l) => !l.startsWith(`${userId},`));
   fs.writeFileSync(AUTHS_FILE, lines.join("\n") + (lines.length > 0 ? "\n" : ""));
+}
+
+// ─── Stored tokens (individual OAuth-authorized users) ────────────────────────
+//
+// These are kept in a separate file from `auths.txt` (the bulk-imported
+// "stock"). When a user authorizes themselves through `/get_token` → click
+// link → /auth or the new auto-redirect flow, the resulting token is saved
+// here. Bulk `/restock` uploads continue to land in `auths.txt`.
+
+export function readStoredTokens(): Array<{ userId: string; accessToken: string; refreshToken: string }> {
+  ensureDataDir();
+  if (!fs.existsSync(STORED_TOKENS_FILE)) return [];
+  return fs
+    .readFileSync(STORED_TOKENS_FILE, "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split(",");
+      if (parts.length >= 3) return { userId: parts[0]!, accessToken: parts[1]!, refreshToken: parts[2]! };
+      return null;
+    })
+    .filter(Boolean) as Array<{ userId: string; accessToken: string; refreshToken: string }>;
+}
+
+export function saveStoredToken(userId: string, accessToken: string, refreshToken: string) {
+  ensureDataDir();
+  let lines = fs.existsSync(STORED_TOKENS_FILE)
+    ? fs.readFileSync(STORED_TOKENS_FILE, "utf-8").split("\n").filter(Boolean)
+    : [];
+  const idx = lines.findIndex((l) => l.startsWith(`${userId},`));
+  const entry = `${userId},${accessToken},${refreshToken}`;
+  if (idx >= 0) lines[idx] = entry;
+  else lines.push(entry);
+  fs.writeFileSync(STORED_TOKENS_FILE, lines.join("\n") + "\n");
+}
+
+export function deleteStoredToken(userId: string) {
+  ensureDataDir();
+  if (!fs.existsSync(STORED_TOKENS_FILE)) return;
+  const lines = fs
+    .readFileSync(STORED_TOKENS_FILE, "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .filter((l) => !l.startsWith(`${userId},`));
+  fs.writeFileSync(STORED_TOKENS_FILE, lines.join("\n") + (lines.length > 0 ? "\n" : ""));
+}
+
+// Returns stored-token + stock combined, deduped by userId. Stored tokens
+// (from /auth) take precedence when a user appears in both files.
+export function readAllAuthUsers(): Array<{ userId: string; accessToken: string; refreshToken: string }> {
+  const stored = readStoredTokens();
+  const stock = readAuthUsers();
+  const map = new Map<string, { userId: string; accessToken: string; refreshToken: string }>();
+  for (const u of stock) map.set(u.userId, u);
+  for (const u of stored) map.set(u.userId, u); // stored wins
+  return [...map.values()];
+}
+
+// Sends a confirmation DM to a user after they successfully authorize. Best
+// effort — failures (DMs disabled, user unreachable, bot offline) are logged
+// but never throw, since the auth itself has already succeeded.
+export async function sendAuthSuccessDM(userId: string): Promise<boolean> {
+  try {
+    const { getClient } = await import("./botState");
+    const client = getClient();
+    if (!client) {
+      logger.warn({ userId }, "Cannot send auth-success DM — bot client not connected");
+      return false;
+    }
+    const user = await client.users.fetch(userId);
+    const embed = new EmbedBuilder()
+      .setTitle("✅ You're Authorized!")
+      .setDescription(
+        "You have been **successfully authorized** with Members Bot.\n\n" +
+        "Your account has been added to the bot's stored tokens. " +
+        "You can now use `/djoin` in any server where the bot is set up."
+      )
+      .setColor(0x57f287)
+      .setFooter({ text: "Members Bot • Authorization confirmed" })
+      .setTimestamp();
+    await user.send({ embeds: [embed] });
+    logger.info({ userId }, "Sent auth-success DM");
+    return true;
+  } catch (err) {
+    logger.warn({ err, userId }, "Failed to send auth-success DM");
+    return false;
+  }
 }
 
 // ─── Authorization ────────────────────────────────────────────────────────────
@@ -596,7 +684,7 @@ function buildGetTokenEmbed(userId: string): EmbedBuilder {
     .setTimestamp();
 }
 
-async function doAuthExchange(
+export async function doAuthExchange(
   code: string,
   userId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -618,7 +706,10 @@ async function doAuthExchange(
       return { ok: false, error: err.error_description ?? "Unknown error" };
     }
     const info = (await res.json()) as { access_token: string; refresh_token: string };
-    saveUserAuth(userId, info.access_token, info.refresh_token);
+    // Save to the dedicated "stored tokens" file (separate from bulk stock)
+    saveStoredToken(userId, info.access_token, info.refresh_token);
+    // Best-effort DM confirmation. Errors are swallowed inside the helper.
+    void sendAuthSuccessDM(userId);
     return { ok: true };
   } catch {
     return { ok: false, error: "Network error during authentication" };
@@ -626,16 +717,20 @@ async function doAuthExchange(
 }
 
 function buildCountEmbed(): EmbedBuilder {
-  const users = readAuthUsers();
+  const stored = readStoredTokens();
+  const stock = readAuthUsers();
   return new EmbedBuilder()
     .setTitle("📊 Stored Tokens")
-    .setDescription(`There are currently **${users.length}** authenticated tokens stored.`)
+    .setDescription(
+      `There are currently **${stored.length}** stored tokens (from individual OAuth authorizations).\n` +
+      `Bulk stock contains **${stock.length}** tokens. Use \`/stock\` to see stock.`
+    )
     .setColor(0x5865f2)
     .setTimestamp();
 }
 
 function buildListUsersEmbed(): { embed: EmbedBuilder; empty: boolean } {
-  const users = readAuthUsers();
+  const users = readStoredTokens();
   if (users.length === 0) return { embed: new EmbedBuilder().setDescription("❌ No authenticated users found.").setColor(0xed4245), empty: true };
   let desc = "";
   for (const u of users) {
@@ -692,7 +787,7 @@ export async function doMassJoin(
       .setColor(0xed4245)
       .addFields({ name: "🚨 Solution", value: `**[Add bot to server first](${inviteUrl})**\nThen run the djoin command again`, inline: false });
   }
-  const allUsers = readAuthUsers();
+  const allUsers = readAllAuthUsers();
   if (allUsers.length === 0) {
     return new EmbedBuilder().setDescription("❌ No authenticated users. Share `!get_token` or `/get_token` with users first.").setColor(0xed4245);
   }
@@ -979,12 +1074,12 @@ function notAuthedEmbed(): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle("🔐 Not Authenticated")
     .setDescription(
-      "You must authenticate before you can use `/djoin` or `!djoin`.\n\n" +
-      "**How to authenticate:**\n" +
+      "You must authorize before you can use `/djoin` or `!djoin`.\n\n" +
+      "**How to authorize:**\n" +
       "1. Run `/get_token` or `!get_token` to get your auth link\n" +
       "2. Click the link and authorize the app\n" +
-      "3. Copy the code and run `/auth code:YOUR_CODE`\n\n" +
-      "Once authenticated, you can use djoin."
+      "3. You'll be authorized automatically and receive a DM confirmation\n\n" +
+      "(Alternatively, use `/auth code:YOUR_CODE` if you copied a code instead.)"
     )
     .setColor(0xed4245);
 }
@@ -1394,7 +1489,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
         });
         return;
       }
-      if (!readAuthUsers().some((u) => u.userId === userId)) {
+      if (!readAllAuthUsers().some((u) => u.userId === userId)) {
         await interaction.reply({ embeds: [notAuthedEmbed()], flags: 64 });
         return;
       }
@@ -1919,7 +2014,7 @@ async function handlePrefix(message: Message, client: Client) {
           });
           return;
         }
-        if (!readAuthUsers().some((u) => u.userId === userId)) {
+        if (!readAllAuthUsers().some((u) => u.userId === userId)) {
           await message.reply({ embeds: [notAuthedEmbed()] }); return;
         }
         const serverId = args[0]?.trim();
