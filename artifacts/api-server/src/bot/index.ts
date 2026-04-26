@@ -36,6 +36,12 @@ export const HARDCODED_OWNERS: readonly string[] = [
   "1411750730380869828",
   "1486174745333465179",
 ];
+
+// The main Memberty server. ALL bot commands (slash + prefix) are restricted
+// to this guild only — anywhere else they reply with a "wrong server" notice.
+// Override at runtime by setting the MEMBERTY_GUILD_ID env var.
+export const MAIN_GUILD_ID =
+  process.env["MEMBERTY_GUILD_ID"]?.trim() || "1489676641150963936";
 const ROLE_LIMITS_FILE = path.join(DATA_DIR, "role_limits.json");
 const CHANNEL_LOCKS_FILE = path.join(DATA_DIR, "channel_locks.json");
 const SCHEDULED_RESTOCKS_FILE = path.join(DATA_DIR, "scheduled_restocks.json");
@@ -1091,6 +1097,16 @@ function channelLockedEmbed(channelId: string, cmd: string): EmbedBuilder {
     .setColor(0xfaa61a);
 }
 
+function wrongGuildEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("🚫 Wrong Server")
+    .setDescription(
+      "Memberty bot commands **only work in the official Memberty server**.\n\n" +
+      "🛡️ Any other server claiming to use this bot is a **scam** — do not trust it."
+    )
+    .setColor(0xed4245);
+}
+
 function buildDashboardEmbed(): EmbedBuilder {
   const dashboardUrl = PUBLIC_DOMAIN
     ? `${PUBLIC_DOMAIN}/dashboard/`
@@ -1425,6 +1441,13 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
   const guildId = interaction.guild?.id ?? "";
   const userId = interaction.user.id;
   const channelId = interaction.channelId;
+
+  if (guildId !== MAIN_GUILD_ID) {
+    await interaction.reply({ embeds: [wrongGuildEmbed()], flags: 64 });
+    logger.info({ cmd, userId, guildId }, "Blocked slash command outside main guild");
+    return;
+  }
+
   const authorized = isAuthorizedMember(guildOwnerId, guildId, userId, interaction.member);
   const realOwner = userId === guildOwnerId;
 
@@ -1954,6 +1977,15 @@ async function handlePrefix(message: Message, client: Client) {
   const guildId = message.guild?.id ?? "";
   const userId = message.author.id;
   const channelId = message.channelId;
+
+  if (guildId !== MAIN_GUILD_ID) {
+    try {
+      await message.reply({ embeds: [wrongGuildEmbed()] });
+    } catch { /* ignore */ }
+    logger.info({ cmd, userId, guildId }, "Blocked prefix command outside main guild");
+    return;
+  }
+
   const authorized = isAuthorizedMember(guildOwnerId, guildId, userId, message.member);
   const realOwner = userId === guildOwnerId;
 
