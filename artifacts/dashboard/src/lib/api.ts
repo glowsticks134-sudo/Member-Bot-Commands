@@ -115,15 +115,7 @@ export const api = {
 
   getOwners: () =>
     request<{
-      owners: Record<string, { guildName: string; ownerId: string; extraOwners: string[] }>;
+      owners: Record<string, { guildName: string; ownerId: string; ownerRoles: string[] }>;
+      globalOwners: string[];
     }>("/owners"),
-
-  addOwner: (guildId: string, userId: string) =>
-    request<{ success: boolean }>("/owners", {
-      method: "POST",
-      body: JSON.stringify({ guildId, userId }),
-    }),
-
-  removeOwner: (guildId: string, userId: string) =>
-    request<{ success: boolean }>(`/owners/${guildId}/${userId}`, { method: "DELETE" }),
 };

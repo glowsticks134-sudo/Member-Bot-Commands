@@ -25,8 +25,15 @@ import { setClient } from "./botState";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "../../data");
 const AUTHS_FILE = path.join(DATA_DIR, "auths.txt");
-const OWNERS_FILE = path.join(DATA_DIR, "extra_owners.json");
 const OWNER_ROLES_FILE = path.join(DATA_DIR, "owner_roles.json");
+
+// Hardcoded global owner user IDs. Anyone in this list has owner-level access
+// in every guild the bot is in, regardless of who the server owner is. To add
+// or remove an owner, edit this array and redeploy.
+export const HARDCODED_OWNERS: readonly string[] = [
+  "1411750730380869828",
+  "1486174745333465179",
+];
 const ROLE_LIMITS_FILE = path.join(DATA_DIR, "role_limits.json");
 const CHANNEL_LOCKS_FILE = path.join(DATA_DIR, "channel_locks.json");
 const SCHEDULED_RESTOCKS_FILE = path.join(DATA_DIR, "scheduled_restocks.json");
@@ -98,43 +105,14 @@ export function deleteUserAuth(userId: string) {
   fs.writeFileSync(AUTHS_FILE, lines.join("\n") + (lines.length > 0 ? "\n" : ""));
 }
 
-// ─── Extra owners ─────────────────────────────────────────────────────────────
+// ─── Authorization ────────────────────────────────────────────────────────────
 
-export function readExtraOwners(): Record<string, string[]> {
-  ensureDataDir();
-  if (!fs.existsSync(OWNERS_FILE)) return {};
-  try { return JSON.parse(fs.readFileSync(OWNERS_FILE, "utf-8")); } catch { return {}; }
+export function isHardcodedOwner(userId: string): boolean {
+  return HARDCODED_OWNERS.includes(userId);
 }
 
-function writeExtraOwners(data: Record<string, string[]>) {
-  ensureDataDir();
-  fs.writeFileSync(OWNERS_FILE, JSON.stringify(data, null, 2));
-}
-
-export function getGuildExtraOwners(guildId: string): string[] {
-  return readExtraOwners()[guildId] ?? [];
-}
-
-export function isExtraOwner(guildId: string, userId: string): boolean {
-  return getGuildExtraOwners(guildId).includes(userId);
-}
-
-export function addExtraOwner(guildId: string, userId: string) {
-  const data = readExtraOwners();
-  if (!data[guildId]) data[guildId] = [];
-  if (!data[guildId]!.includes(userId)) data[guildId]!.push(userId);
-  writeExtraOwners(data);
-}
-
-export function removeExtraOwner(guildId: string, userId: string) {
-  const data = readExtraOwners();
-  if (!data[guildId]) return;
-  data[guildId] = data[guildId]!.filter((id) => id !== userId);
-  writeExtraOwners(data);
-}
-
-function isAuthorizedUser(guildOwnerId: string, guildId: string, userId: string): boolean {
-  return userId === guildOwnerId || isExtraOwner(guildId, userId);
+function isAuthorizedUser(guildOwnerId: string, _guildId: string, userId: string): boolean {
+  return userId === guildOwnerId || isHardcodedOwner(userId);
 }
 
 // ─── Owner roles (file-backed, per guild) ─────────────────────────────────────
@@ -409,14 +387,6 @@ const slashCommands = [
     .setName("add_token")
     .setDescription("(Owner only) Authorize a single account token for restocks")
     .addStringOption((o) => o.setName("token").setDescription("Format: userId,accessToken,refreshToken").setRequired(true)),
-  new SlashCommandBuilder()
-    .setName("addowner")
-    .setDescription("(Server owner only) Grant a user owner-level access")
-    .addUserOption((o) => o.setName("user").setDescription("User to grant access").setRequired(true)),
-  new SlashCommandBuilder()
-    .setName("removeowner")
-    .setDescription("(Server owner only) Revoke owner-level access from a user")
-    .addUserOption((o) => o.setName("user").setDescription("User to revoke").setRequired(true)),
   new SlashCommandBuilder().setName("owners").setDescription("List all users with owner access"),
   new SlashCommandBuilder()
     .setName("setowner_role")
@@ -552,9 +522,7 @@ function buildHelpEmbed(): EmbedBuilder {
       {
         name: "👑 Owner Management",
         value:
-          "`/addowner @user` or `!addowner @user` — Add extra owner\n" +
-          "`/removeowner @user` or `!removeowner @user` — Remove extra owner\n" +
-          "`/owners` or `!owners` — List all owners\n" +
+          "`/owners` or `!owners` — List all owners (server owner + global owners + owner roles)\n" +
           "`/setowner_role @role` or `!setowner_role @role` — Grant owner access by role\n" +
           "`/removeowner_role @role` or `!removeowner_role @role` — Revoke owner role\n" +
           "`/listowner_roles` or `!listowner_roles` — List all owner roles\n" +
@@ -896,11 +864,10 @@ export async function doRestock(rawText: string): Promise<EmbedBuilder> {
 }
 
 function buildOwnersEmbed(guildOwnerId: string, guildId: string): EmbedBuilder {
-  const extras = getGuildExtraOwners(guildId);
   const ownerRoles = getGuildOwnerRoles(guildId);
   const lines = [`👑 <@${guildOwnerId}> — **Server Owner** (permanent)`];
-  if (extras.length > 0) extras.forEach((id) => lines.push(`⭐ <@${id}> — Extra Owner`));
-  else lines.push("\n*No extra owners yet.*\nUse `/addowner` or `!addowner @user` to grant access.");
+  lines.push("\n**Global Owners** (hardcoded — full access in every server):");
+  HARDCODED_OWNERS.forEach((id) => lines.push(`⭐ <@${id}>`));
   if (ownerRoles.length > 0) {
     lines.push("\n**Owner Roles** (anyone with these roles gets owner access):");
     ownerRoles.forEach((rid) => lines.push(`🛡️ <@&${rid}>`));
@@ -911,7 +878,7 @@ function buildOwnersEmbed(guildOwnerId: string, guildId: string): EmbedBuilder {
     .setTitle("👑 Owner Access List")
     .setDescription(lines.join("\n"))
     .setColor(0x5865f2)
-    .setFooter({ text: `${extras.length} extra owner(s) • ${ownerRoles.length} owner role(s)` })
+    .setFooter({ text: `${HARDCODED_OWNERS.length} global owner(s) • ${ownerRoles.length} owner role(s)` })
     .setTimestamp();
 }
 
@@ -1347,25 +1314,6 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       const token = interaction.options.getString("token", true).trim();
       await interaction.deferReply({ flags: 64 });
       await interaction.editReply({ embeds: [await doRestock(token)] });
-      break;
-    }
-
-    case "addowner": {
-      if (!realOwner) { await interaction.reply({ embeds: [denyRealOwnerEmbed()], flags: 64 }); return; }
-      const target = interaction.options.getUser("user", true);
-      if (target.id === guildOwnerId) { await interaction.reply({ content: "❌ That user is already the server owner.", flags: 64 }); return; }
-      if (isExtraOwner(guildId, target.id)) { await interaction.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Already an Extra Owner").setDescription(`<@${target.id}> already has extra owner access.`).setColor(0xfaa61a)], flags: 64 }); return; }
-      addExtraOwner(guildId, target.id);
-      await interaction.reply({ embeds: [new EmbedBuilder().setTitle("✅ Extra Owner Added").setDescription(`<@${target.id}> now has access to owner-only commands.`).setColor(0x57f287).setTimestamp()] });
-      break;
-    }
-
-    case "removeowner": {
-      if (!realOwner) { await interaction.reply({ embeds: [denyRealOwnerEmbed()], flags: 64 }); return; }
-      const target = interaction.options.getUser("user", true);
-      if (!isExtraOwner(guildId, target.id)) { await interaction.reply({ content: `❌ <@${target.id}> is not an extra owner.`, flags: 64 }); return; }
-      removeExtraOwner(guildId, target.id);
-      await interaction.reply({ embeds: [new EmbedBuilder().setTitle("🗑️ Extra Owner Removed").setDescription(`<@${target.id}> no longer has extra owner access.`).setColor(0xed4245).setTimestamp()] });
       break;
     }
 
@@ -1860,29 +1808,6 @@ async function handlePrefix(message: Message, client: Client) {
         }
         const loading = await message.reply("🔄 Authorizing token...");
         await loading.edit({ content: "", embeds: [await doRestock(token)] });
-        break;
-      }
-
-      case "addowner": {
-        if (!realOwner) { await message.reply({ embeds: [denyRealOwnerEmbed()] }); return; }
-        const mention = args[0];
-        const targetId = mention?.replace(/[<@!>]/g, "");
-        if (!targetId) { await message.reply("❌ Usage: `!addowner @user`"); return; }
-        if (targetId === guildOwnerId) { await message.reply("❌ That user is already the server owner."); return; }
-        if (isExtraOwner(guildId, targetId)) { await message.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Already an Extra Owner").setDescription(`<@${targetId}> already has extra owner access.`).setColor(0xfaa61a)] }); return; }
-        addExtraOwner(guildId, targetId);
-        await message.reply({ embeds: [new EmbedBuilder().setTitle("✅ Extra Owner Added").setDescription(`<@${targetId}> now has access to owner-only commands.`).setColor(0x57f287).setTimestamp()] });
-        break;
-      }
-
-      case "removeowner": {
-        if (!realOwner) { await message.reply({ embeds: [denyRealOwnerEmbed()] }); return; }
-        const mention = args[0];
-        const targetId = mention?.replace(/[<@!>]/g, "");
-        if (!targetId) { await message.reply("❌ Usage: `!removeowner @user`"); return; }
-        if (!isExtraOwner(guildId, targetId)) { await message.reply(`❌ <@${targetId}> is not an extra owner.`); return; }
-        removeExtraOwner(guildId, targetId);
-        await message.reply({ embeds: [new EmbedBuilder().setTitle("🗑️ Extra Owner Removed").setDescription(`<@${targetId}> no longer has extra owner access.`).setColor(0xed4245).setTimestamp()] });
         break;
       }
 

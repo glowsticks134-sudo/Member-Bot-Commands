@@ -8,10 +8,8 @@ import {
   doRestock,
   doCheckTokens,
   doMassJoin,
-  readExtraOwners,
-  getGuildExtraOwners,
-  addExtraOwner,
-  removeExtraOwner,
+  HARDCODED_OWNERS,
+  getGuildOwnerRoles,
   readRoleLimits,
   getGuildRoleLimits,
   setGuildRoleLimit,
@@ -268,27 +266,15 @@ router.delete("/channels/:guildId/:type", requireAuth, (req: Request, res: Respo
 router.get("/owners", requireAuth, (_req: Request, res: Response) => {
   const client = getClient();
   const guilds = client ? [...client.guilds.cache.values()] : [];
-  const ownersData: Record<string, { guildName: string; ownerId: string; extraOwners: string[] }> = {};
+  const ownersData: Record<string, { guildName: string; ownerId: string; ownerRoles: string[] }> = {};
   for (const guild of guilds) {
     ownersData[guild.id] = {
       guildName: guild.name,
       ownerId: guild.ownerId,
-      extraOwners: getGuildExtraOwners(guild.id),
+      ownerRoles: getGuildOwnerRoles(guild.id),
     };
   }
-  res.json({ owners: ownersData });
-});
-
-router.post("/owners", requireAuth, (req: Request, res: Response) => {
-  const { guildId, userId } = req.body as { guildId?: string; userId?: string };
-  if (!guildId || !userId) { res.status(400).json({ error: "guildId and userId required" }); return; }
-  addExtraOwner(guildId, userId);
-  res.json({ success: true });
-});
-
-router.delete("/owners/:guildId/:userId", requireAuth, (req: Request, res: Response) => {
-  removeExtraOwner(req.params.guildId!, req.params.userId!);
-  res.json({ success: true });
+  res.json({ owners: ownersData, globalOwners: [...HARDCODED_OWNERS] });
 });
 
 export default router;

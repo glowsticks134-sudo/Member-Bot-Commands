@@ -4,24 +4,21 @@ import { api } from "@/lib/api";
 interface GuildOwners {
   guildName: string;
   ownerId: string;
-  extraOwners: string[];
+  ownerRoles: string[];
 }
 
 export default function Owners() {
   const [owners, setOwners] = useState<Record<string, GuildOwners>>({});
+  const [globalOwners, setGlobalOwners] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [selectedGuild, setSelectedGuild] = useState("");
-  const [newUserId, setNewUserId] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState("");
-  const [removingId, setRemovingId] = useState<string | null>(null);
 
   function load() {
     api.getOwners()
       .then((r) => {
         setOwners(r.owners);
+        setGlobalOwners(r.globalOwners);
         if (!selectedGuild && Object.keys(r.owners).length > 0) {
           setSelectedGuild(Object.keys(r.owners)[0]!);
         }
@@ -32,46 +29,40 @@ export default function Owners() {
 
   useEffect(() => { load(); }, []);
 
-  async function handleAdd() {
-    if (!selectedGuild || !newUserId.trim()) return;
-    setAdding(true);
-    setAddError("");
-    try {
-      await api.addOwner(selectedGuild, newUserId.trim());
-      setNewUserId("");
-      load();
-    } catch (e: unknown) {
-      setAddError((e as Error).message);
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  async function handleRemove(userId: string) {
-    if (!selectedGuild) return;
-    if (!confirm(`Remove owner access from user ${userId}?`)) return;
-    setRemovingId(userId);
-    try {
-      await api.removeOwner(selectedGuild, userId);
-      load();
-    } catch (e: unknown) {
-      alert((e as Error).message);
-    } finally {
-      setRemovingId(null);
-    }
-  }
-
   const guilds = Object.entries(owners);
   const current = selectedGuild ? owners[selectedGuild] : null;
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Owner Management</h1>
-        <p className="text-muted-foreground text-sm mt-1">Manage who has owner-level access to bot commands per server</p>
+        <h1 className="text-2xl font-bold text-foreground">Owner Access</h1>
+        <p className="text-muted-foreground text-sm mt-1">View who has owner-level access to bot commands</p>
       </div>
 
       {error && <ErrorBanner message={error} />}
+
+      {/* Global owners */}
+      <div className="bg-card border border-border rounded-xl p-4 mb-6">
+        <div className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">
+          Global Owners ({globalOwners.length}) — full access in every server
+        </div>
+        {globalOwners.length === 0 ? (
+          <div className="text-sm text-muted-foreground">None configured</div>
+        ) : (
+          <div className="space-y-2">
+            {globalOwners.map((uid) => (
+              <div key={uid} className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center text-base shrink-0">⭐</div>
+                <span className="flex-1 text-sm font-mono text-foreground">{uid}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground mt-3">
+          To change this list, edit <code className="bg-muted px-1.5 py-0.5 rounded text-foreground">HARDCODED_OWNERS</code> in{" "}
+          <code className="bg-muted px-1.5 py-0.5 rounded text-foreground">artifacts/api-server/src/bot/index.ts</code> and redeploy.
+        </p>
+      </div>
 
       {/* Guild selector */}
       {guilds.length > 1 && (
@@ -107,49 +98,24 @@ export default function Owners() {
             </div>
           </div>
 
-          {/* Add extra owner */}
-          <div className="bg-card border border-border rounded-xl p-4 mb-4">
-            <h2 className="font-semibold text-foreground text-sm mb-3">⭐ Add Extra Owner</h2>
-            <div className="flex gap-3">
-              <input
-                type="text"
-                value={newUserId}
-                onChange={(e) => setNewUserId(e.target.value)}
-                placeholder="Discord User ID"
-                className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
-              />
-              <button
-                onClick={handleAdd}
-                disabled={adding || !newUserId.trim()}
-                className="bg-primary text-primary-foreground text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
-              >
-                {adding ? "Adding..." : "Add"}
-              </button>
-            </div>
-            {addError && <p className="text-destructive text-xs mt-2">{addError}</p>}
-            <p className="text-xs text-muted-foreground mt-2">Extra owners can use all owner-level bot commands in this server.</p>
-          </div>
-
-          {/* Extra owners list */}
+          {/* Owner roles for this guild */}
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-border">
-              <h2 className="font-semibold text-foreground text-sm">Extra Owners ({current.extraOwners.length})</h2>
+              <h2 className="font-semibold text-foreground text-sm">Owner Roles ({current.ownerRoles.length})</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Anyone with one of these roles in this server gets owner access. Manage with{" "}
+                <code className="bg-muted px-1 py-0.5 rounded">/setowner_role</code> and{" "}
+                <code className="bg-muted px-1 py-0.5 rounded">/removeowner_role</code> in Discord.
+              </p>
             </div>
-            {current.extraOwners.length === 0 ? (
-              <div className="p-6 text-center text-muted-foreground text-sm">No extra owners added yet</div>
+            {current.ownerRoles.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground text-sm">No owner roles configured for this server</div>
             ) : (
               <div className="divide-y divide-border">
-                {current.extraOwners.map((uid) => (
-                  <div key={uid} className="flex items-center gap-3 px-4 py-3">
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-base shrink-0">⭐</div>
-                    <span className="flex-1 text-sm font-mono text-foreground">{uid}</span>
-                    <button
-                      onClick={() => handleRemove(uid)}
-                      disabled={removingId === uid}
-                      className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded hover:bg-destructive/10"
-                    >
-                      {removingId === uid ? "..." : "Remove"}
-                    </button>
+                {current.ownerRoles.map((rid) => (
+                  <div key={rid} className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-base shrink-0">🛡️</div>
+                    <span className="flex-1 text-sm font-mono text-foreground">{rid}</span>
                   </div>
                 ))}
               </div>
