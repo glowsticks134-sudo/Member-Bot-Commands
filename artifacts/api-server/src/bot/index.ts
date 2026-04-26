@@ -13,6 +13,7 @@ import {
   Attachment,
   ChannelType,
   GuildMember,
+  ButtonInteraction,
 } from "discord.js";
 import type { APIInteractionGuildMember } from "discord.js";
 import { logger } from "../lib/logger";
@@ -388,6 +389,7 @@ const slashCommands = [
     .setDescription("(Owner only) Authorize a single account token for restocks")
     .addStringOption((o) => o.setName("token").setDescription("Format: userId,accessToken,refreshToken").setRequired(true)),
   new SlashCommandBuilder().setName("owners").setDescription("List all users with owner access"),
+  new SlashCommandBuilder().setName("control_panel").setDescription("(Owner only) Open the interactive bot control panel"),
   new SlashCommandBuilder()
     .setName("setowner_role")
     .setDescription("(Server owner only) Grant owner-level access to everyone with a role")
@@ -523,6 +525,7 @@ function buildHelpEmbed(): EmbedBuilder {
         name: "👑 Owner Management",
         value:
           "`/owners` or `!owners` — List all owners (server owner + global owners + owner roles)\n" +
+          "`/control_panel` or `!control_panel` — Open the interactive owner control panel\n" +
           "`/setowner_role @role` or `!setowner_role @role` — Grant owner access by role\n" +
           "`/removeowner_role @role` or `!removeowner_role @role` — Revoke owner role\n" +
           "`/listowner_roles` or `!listowner_roles` — List all owner roles\n" +
@@ -1084,6 +1087,169 @@ function doClearStock(): EmbedBuilder {
     .setTimestamp();
 }
 
+// ─── Control panel ────────────────────────────────────────────────────────────
+//
+// An interactive owner-only embed that exposes the bot's most common controls
+// as buttons. Custom IDs are namespaced with `cp:` so the button handler can
+// route them without colliding with anything else.
+
+function buildControlPanelEmbed(client: Client): EmbedBuilder {
+  const stock = readAuthUsers().length;
+  const guildCount = client.guilds.cache.size;
+  const uptime = botStartTime
+    ? (() => {
+        const ms = Date.now() - botStartTime.getTime();
+        const d = Math.floor(ms / 86400000);
+        const h = Math.floor((ms % 86400000) / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        return `${d}d ${h}h ${m}m`;
+      })()
+    : "Unknown";
+  return new EmbedBuilder()
+    .setTitle("🎛️ Bot Control Panel")
+    .setDescription("Owner-only command center. Use the buttons below to control the bot.")
+    .setColor(0x5865f2)
+    .addFields(
+      { name: "📦 Tokens in Stock", value: `${stock}`, inline: true },
+      { name: "🌐 Servers", value: `${guildCount}`, inline: true },
+      { name: "⏱️ Uptime", value: uptime, inline: true },
+      { name: "🏷️ Bot Tag", value: client.user?.tag ?? "Connecting...", inline: true },
+      { name: "📡 Status", value: client.user ? "🟢 Online" : "🔴 Offline", inline: true },
+      { name: "👑 Global Owners", value: `${HARDCODED_OWNERS.length}`, inline: true },
+    )
+    .setThumbnail(client.user?.displayAvatarURL() ?? null)
+    .setFooter({ text: "Only owners can use these buttons • Press 🔄 Refresh to update" })
+    .setTimestamp();
+}
+
+function buildControlPanelRows(): ActionRowBuilder<ButtonBuilder>[] {
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("cp:refresh").setLabel("🔄 Refresh").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("cp:check_tokens").setLabel("🔐 Check Tokens").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:stock").setLabel("📦 Stock").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:status").setLabel("📡 Status").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:list_users").setLabel("👥 List Users").setStyle(ButtonStyle.Secondary),
+  );
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("cp:owners").setLabel("👑 Owners").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:listowner_roles").setLabel("🛡️ Owner Roles").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:listroles").setLabel("🎭 Role Limits").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:listchannels").setLabel("📌 Channel Locks").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:servers").setLabel("🌐 Servers").setStyle(ButtonStyle.Secondary),
+  );
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("cp:list_schedules").setLabel("📅 Schedules").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:daily_status").setLabel("⏰ Daily Restock").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("cp:dashboard").setLabel("🖥️ Web Dashboard").setStyle(ButtonStyle.Secondary),
+  );
+  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("cp:clear_stock").setLabel("🗑️ Clear Stock").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId("cp:cleanup_servers").setLabel("🧹 Leave Other Servers").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId("cp:restart").setLabel("🔁 Restart Bot").setStyle(ButtonStyle.Danger),
+  );
+  return [row1, row2, row3, row4];
+}
+
+async function handleControlPanelButton(interaction: ButtonInteraction, client: Client) {
+  const action = interaction.customId.slice(3); // strip "cp:"
+  const guildOwnerId = interaction.guild?.ownerId ?? "";
+  const guildId = interaction.guild?.id ?? "";
+  const userId = interaction.user.id;
+
+  if (!isAuthorizedMember(guildOwnerId, guildId, userId, interaction.member)) {
+    await interaction.reply({ embeds: [denyEmbed()], flags: 64 });
+    return;
+  }
+
+  switch (action) {
+    case "refresh": {
+      await interaction.update({ embeds: [buildControlPanelEmbed(client)], components: buildControlPanelRows() });
+      return;
+    }
+    case "check_tokens": {
+      await interaction.deferReply({ flags: 64 });
+      await interaction.editReply({ embeds: [await doCheckTokens()] });
+      return;
+    }
+    case "stock": {
+      await interaction.reply({ embeds: [buildStockEmbed()], flags: 64 });
+      return;
+    }
+    case "status": {
+      await interaction.reply({ embeds: [buildStatusEmbed(client)], flags: 64 });
+      return;
+    }
+    case "list_users": {
+      const { embed } = buildListUsersEmbed();
+      await interaction.reply({ embeds: [embed], flags: 64 });
+      return;
+    }
+    case "owners": {
+      await interaction.reply({ embeds: [buildOwnersEmbed(guildOwnerId, guildId)], flags: 64 });
+      return;
+    }
+    case "listowner_roles": {
+      await interaction.reply({ embeds: [buildOwnerRolesEmbed(guildId)], flags: 64 });
+      return;
+    }
+    case "listroles": {
+      await interaction.reply({ embeds: [buildRoleLimitsEmbed(guildId)], flags: 64 });
+      return;
+    }
+    case "listchannels": {
+      await interaction.reply({ embeds: [buildChannelLocksEmbed(guildId)], flags: 64 });
+      return;
+    }
+    case "servers": {
+      await interaction.reply({ embeds: [buildServersEmbed(client)], flags: 64 });
+      return;
+    }
+    case "list_schedules": {
+      await interaction.reply({ embeds: [buildListSchedulesEmbed()], flags: 64 });
+      return;
+    }
+    case "daily_status": {
+      await interaction.reply({ embeds: [buildDailyRestockStatusEmbed()], flags: 64 });
+      return;
+    }
+    case "dashboard": {
+      await interaction.reply({ embeds: [buildDashboardEmbed()], flags: 64 });
+      return;
+    }
+    case "clear_stock": {
+      await interaction.reply({ embeds: [doClearStock()], flags: 64 });
+      return;
+    }
+    case "cleanup_servers": {
+      await interaction.deferReply({ flags: 64 });
+      await interaction.editReply({ embeds: [await doCleanupServers(client, guildId)] });
+      return;
+    }
+    case "restart": {
+      await interaction.reply({
+        embeds: [new EmbedBuilder().setTitle("🔄 Restarting Bot...").setDescription("Disconnecting and reconnecting. Commands will be re-registered.\n\nThis takes about **5 seconds**.").setColor(0xfaa61a).setTimestamp()],
+        flags: 64,
+      });
+      logger.info({ by: userId }, "Bot restart via control panel");
+      await new Promise((r) => setTimeout(r, 1000));
+      await client.destroy();
+      await client.login(BOT_TOKEN);
+      const guildIds = [...client.guilds.cache.keys()];
+      await registerCommands(guildIds);
+      try {
+        await interaction.editReply({
+          embeds: [new EmbedBuilder().setTitle("✅ Bot Restarted").setDescription(`Back online. **${guildIds.length}** server(s) have fresh commands.`).setColor(0x57f287).setTimestamp()],
+        });
+      } catch { /* interaction expired */ }
+      return;
+    }
+    default: {
+      await interaction.reply({ content: `❌ Unknown control panel action: \`${action}\``, flags: 64 });
+      return;
+    }
+  }
+}
+
 function buildStockEmbed(): EmbedBuilder {
   const count = readAuthUsers().length;
   const hasStock = count > 0;
@@ -1320,6 +1486,12 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
     case "owners":
       await interaction.reply({ embeds: [buildOwnersEmbed(guildOwnerId, guildId)], flags: 64 });
       break;
+
+    case "control_panel": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      await interaction.reply({ embeds: [buildControlPanelEmbed(client)], components: buildControlPanelRows() });
+      break;
+    }
 
     case "setowner_role": {
       if (!realOwner) { await interaction.reply({ embeds: [denyRealOwnerEmbed()], flags: 64 }); return; }
@@ -1815,6 +1987,14 @@ async function handlePrefix(message: Message, client: Client) {
         await message.reply({ embeds: [buildOwnersEmbed(guildOwnerId, guildId)] });
         break;
 
+      case "control_panel":
+      case "controlpanel":
+      case "panel": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        await message.reply({ embeds: [buildControlPanelEmbed(client)], components: buildControlPanelRows() });
+        break;
+      }
+
       case "setowner_role": {
         if (!realOwner) { await message.reply({ embeds: [denyRealOwnerEmbed()] }); return; }
         const mention = args[0];
@@ -2178,14 +2358,28 @@ export async function startBot() {
   });
 
   client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    try {
-      await handleSlash(interaction, client);
-    } catch (err) {
-      logger.error({ err, cmd: interaction.commandName }, "Slash command error");
-      const msg = { content: "❌ An error occurred.", flags: 64 as const };
-      if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
-      else await interaction.reply(msg);
+    if (interaction.isChatInputCommand()) {
+      try {
+        await handleSlash(interaction, client);
+      } catch (err) {
+        logger.error({ err, cmd: interaction.commandName }, "Slash command error");
+        const msg = { content: "❌ An error occurred.", flags: 64 as const };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
+        else await interaction.reply(msg);
+      }
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("cp:")) {
+      try {
+        await handleControlPanelButton(interaction, client);
+      } catch (err) {
+        logger.error({ err, customId: interaction.customId }, "Control panel button error");
+        const msg = { content: "❌ An error occurred handling that button.", flags: 64 as const };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
+        else await interaction.reply(msg);
+      }
+      return;
     }
   });
 
