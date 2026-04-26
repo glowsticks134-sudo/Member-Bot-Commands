@@ -64,6 +64,7 @@ Stored in `artifacts/data/` (gitignored — never committed, created at runtime)
 - `role_limits.json` — per-guild role limits (max 10 per guild)
 - `channel_locks.json` — per-guild channel restrictions for djoin/auth
 - `extra_owners.json` — per-guild extra owner user IDs
+- `owner_roles.json` — per-guild role IDs that grant owner-level access (role-based ownership survives container restarts)
 - `scheduled_restocks.json` — pending scheduled restocks
 - `daily_restock.json` — daily restock config
 

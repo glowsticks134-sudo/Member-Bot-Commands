@@ -12,7 +12,9 @@ import {
   Message,
   Attachment,
   ChannelType,
+  GuildMember,
 } from "discord.js";
+import type { APIInteractionGuildMember } from "discord.js";
 import { logger } from "../lib/logger";
 import * as fs from "fs";
 import * as path from "path";
@@ -24,6 +26,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "../../data");
 const AUTHS_FILE = path.join(DATA_DIR, "auths.txt");
 const OWNERS_FILE = path.join(DATA_DIR, "extra_owners.json");
+const OWNER_ROLES_FILE = path.join(DATA_DIR, "owner_roles.json");
 const ROLE_LIMITS_FILE = path.join(DATA_DIR, "role_limits.json");
 const CHANNEL_LOCKS_FILE = path.join(DATA_DIR, "channel_locks.json");
 const SCHEDULED_RESTOCKS_FILE = path.join(DATA_DIR, "scheduled_restocks.json");
@@ -132,6 +135,72 @@ export function removeExtraOwner(guildId: string, userId: string) {
 
 function isAuthorizedUser(guildOwnerId: string, guildId: string, userId: string): boolean {
   return userId === guildOwnerId || isExtraOwner(guildId, userId);
+}
+
+// ─── Owner roles (file-backed, per guild) ─────────────────────────────────────
+//
+// Roles whose holders inherit owner-level access. Stored separately from
+// extra owners so the dashboard / list views can show them clearly. Storing
+// role IDs (instead of user IDs) makes ownership survive container restarts
+// even if the data file is wiped, because the role itself lives in Discord.
+
+export function readOwnerRoles(): Record<string, string[]> {
+  ensureDataDir();
+  if (!fs.existsSync(OWNER_ROLES_FILE)) return {};
+  try { return JSON.parse(fs.readFileSync(OWNER_ROLES_FILE, "utf-8")); } catch { return {}; }
+}
+
+function writeOwnerRoles(data: Record<string, string[]>) {
+  ensureDataDir();
+  fs.writeFileSync(OWNER_ROLES_FILE, JSON.stringify(data, null, 2));
+}
+
+export function getGuildOwnerRoles(guildId: string): string[] {
+  return readOwnerRoles()[guildId] ?? [];
+}
+
+export function isOwnerRole(guildId: string, roleId: string): boolean {
+  return getGuildOwnerRoles(guildId).includes(roleId);
+}
+
+export function addOwnerRole(guildId: string, roleId: string) {
+  const data = readOwnerRoles();
+  if (!data[guildId]) data[guildId] = [];
+  if (!data[guildId]!.includes(roleId)) data[guildId]!.push(roleId);
+  writeOwnerRoles(data);
+}
+
+export function removeOwnerRole(guildId: string, roleId: string) {
+  const data = readOwnerRoles();
+  if (!data[guildId]) return;
+  data[guildId] = data[guildId]!.filter((id) => id !== roleId);
+  writeOwnerRoles(data);
+}
+
+function memberRoleIds(member: GuildMember | APIInteractionGuildMember | null | undefined): string[] {
+  if (!member) return [];
+  const roles = (member as { roles?: unknown }).roles;
+  if (Array.isArray(roles)) return roles as string[];
+  if (roles && typeof roles === "object" && "cache" in roles) {
+    return [...(roles as { cache: Map<string, unknown> }).cache.keys()];
+  }
+  return [];
+}
+
+function memberHasOwnerRole(guildId: string, member: GuildMember | APIInteractionGuildMember | null | undefined): boolean {
+  const ownerRoles = getGuildOwnerRoles(guildId);
+  if (ownerRoles.length === 0) return false;
+  const roleIds = memberRoleIds(member);
+  return roleIds.some((rid) => ownerRoles.includes(rid));
+}
+
+function isAuthorizedMember(
+  guildOwnerId: string,
+  guildId: string,
+  userId: string,
+  member: GuildMember | APIInteractionGuildMember | null | undefined,
+): boolean {
+  return isAuthorizedUser(guildOwnerId, guildId, userId) || memberHasOwnerRole(guildId, member);
 }
 
 // ─── Role limits (file-backed, per guild, max 10) ─────────────────────────────
@@ -349,6 +418,15 @@ const slashCommands = [
     .setDescription("(Server owner only) Revoke owner-level access from a user")
     .addUserOption((o) => o.setName("user").setDescription("User to revoke").setRequired(true)),
   new SlashCommandBuilder().setName("owners").setDescription("List all users with owner access"),
+  new SlashCommandBuilder()
+    .setName("setowner_role")
+    .setDescription("(Server owner only) Grant owner-level access to everyone with a role")
+    .addRoleOption((o) => o.setName("role").setDescription("The role to grant owner access").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("removeowner_role")
+    .setDescription("(Server owner only) Revoke owner-level access from a role")
+    .addRoleOption((o) => o.setName("role").setDescription("The role to revoke").setRequired(true)),
+  new SlashCommandBuilder().setName("listowner_roles").setDescription("List all roles that grant owner-level access"),
   new SlashCommandBuilder().setName("restart").setDescription("(Owner only) Restart the bot to apply command updates"),
   // Role limit commands
   new SlashCommandBuilder()
@@ -477,6 +555,9 @@ function buildHelpEmbed(): EmbedBuilder {
           "`/addowner @user` or `!addowner @user` — Add extra owner\n" +
           "`/removeowner @user` or `!removeowner @user` — Remove extra owner\n" +
           "`/owners` or `!owners` — List all owners\n" +
+          "`/setowner_role @role` or `!setowner_role @role` — Grant owner access by role\n" +
+          "`/removeowner_role @role` or `!removeowner_role @role` — Revoke owner role\n" +
+          "`/listowner_roles` or `!listowner_roles` — List all owner roles\n" +
           "`/restart` or `!restart` — Restart bot\n" +
           "`/dashboard` or `!dashboard` — Get private dashboard link (owners only)",
         inline: false,
@@ -816,14 +897,43 @@ export async function doRestock(rawText: string): Promise<EmbedBuilder> {
 
 function buildOwnersEmbed(guildOwnerId: string, guildId: string): EmbedBuilder {
   const extras = getGuildExtraOwners(guildId);
+  const ownerRoles = getGuildOwnerRoles(guildId);
   const lines = [`👑 <@${guildOwnerId}> — **Server Owner** (permanent)`];
   if (extras.length > 0) extras.forEach((id) => lines.push(`⭐ <@${id}> — Extra Owner`));
   else lines.push("\n*No extra owners yet.*\nUse `/addowner` or `!addowner @user` to grant access.");
+  if (ownerRoles.length > 0) {
+    lines.push("\n**Owner Roles** (anyone with these roles gets owner access):");
+    ownerRoles.forEach((rid) => lines.push(`🛡️ <@&${rid}>`));
+  } else {
+    lines.push("\n*No owner roles configured.*\nUse `/setowner_role` or `!setowner_role @role` to add one.");
+  }
   return new EmbedBuilder()
     .setTitle("👑 Owner Access List")
     .setDescription(lines.join("\n"))
     .setColor(0x5865f2)
-    .setFooter({ text: `${extras.length} extra owner(s) • Use addowner / removeowner to manage` })
+    .setFooter({ text: `${extras.length} extra owner(s) • ${ownerRoles.length} owner role(s)` })
+    .setTimestamp();
+}
+
+function buildOwnerRolesEmbed(guildId: string): EmbedBuilder {
+  const roles = getGuildOwnerRoles(guildId);
+  if (roles.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("🛡️ Owner Roles")
+      .setDescription(
+        "No owner roles configured.\n\n" +
+        "Use `/setowner_role` or `!setowner_role @role` to grant owner-level access to everyone with a specific role.\n\n" +
+        "*Tip:* role-based ownership survives bot restarts and redeploys."
+      )
+      .setColor(0xfaa61a)
+      .setTimestamp();
+  }
+  const lines = roles.map((rid) => `🛡️ <@&${rid}>`);
+  return new EmbedBuilder()
+    .setTitle(`🛡️ Owner Roles (${roles.length})`)
+    .setDescription(lines.join("\n"))
+    .setColor(0x5865f2)
+    .setFooter({ text: "Anyone with one of these roles can use owner-only commands" })
     .setTimestamp();
 }
 
@@ -1087,7 +1197,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
   const guildId = interaction.guild?.id ?? "";
   const userId = interaction.user.id;
   const channelId = interaction.channelId;
-  const authorized = isAuthorizedUser(guildOwnerId, guildId, userId);
+  const authorized = isAuthorizedMember(guildOwnerId, guildId, userId, interaction.member);
   const realOwner = userId === guildOwnerId;
 
   switch (cmd) {
@@ -1261,6 +1371,34 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
 
     case "owners":
       await interaction.reply({ embeds: [buildOwnersEmbed(guildOwnerId, guildId)], flags: 64 });
+      break;
+
+    case "setowner_role": {
+      if (!realOwner) { await interaction.reply({ embeds: [denyRealOwnerEmbed()], flags: 64 }); return; }
+      const role = interaction.options.getRole("role", true);
+      if (isOwnerRole(guildId, role.id)) {
+        await interaction.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Already an Owner Role").setDescription(`<@&${role.id}> already grants owner access.`).setColor(0xfaa61a)], flags: 64 });
+        return;
+      }
+      addOwnerRole(guildId, role.id);
+      await interaction.reply({ embeds: [new EmbedBuilder().setTitle("✅ Owner Role Added").setDescription(`Anyone with <@&${role.id}> now has owner-level access.`).setColor(0x57f287).setTimestamp()] });
+      break;
+    }
+
+    case "removeowner_role": {
+      if (!realOwner) { await interaction.reply({ embeds: [denyRealOwnerEmbed()], flags: 64 }); return; }
+      const role = interaction.options.getRole("role", true);
+      if (!isOwnerRole(guildId, role.id)) {
+        await interaction.reply({ content: `❌ <@&${role.id}> is not an owner role.`, flags: 64 });
+        return;
+      }
+      removeOwnerRole(guildId, role.id);
+      await interaction.reply({ embeds: [new EmbedBuilder().setTitle("🗑️ Owner Role Removed").setDescription(`<@&${role.id}> no longer grants owner access.`).setColor(0xed4245).setTimestamp()] });
+      break;
+    }
+
+    case "listowner_roles":
+      await interaction.reply({ embeds: [buildOwnerRolesEmbed(guildId)], flags: 64 });
       break;
 
     case "restart": {
@@ -1601,7 +1739,7 @@ async function handlePrefix(message: Message, client: Client) {
   const guildId = message.guild?.id ?? "";
   const userId = message.author.id;
   const channelId = message.channelId;
-  const authorized = isAuthorizedUser(guildOwnerId, guildId, userId);
+  const authorized = isAuthorizedMember(guildOwnerId, guildId, userId, message.member);
   const realOwner = userId === guildOwnerId;
 
   try {
@@ -1750,6 +1888,32 @@ async function handlePrefix(message: Message, client: Client) {
 
       case "owners":
         await message.reply({ embeds: [buildOwnersEmbed(guildOwnerId, guildId)] });
+        break;
+
+      case "setowner_role": {
+        if (!realOwner) { await message.reply({ embeds: [denyRealOwnerEmbed()] }); return; }
+        const mention = args[0];
+        const roleId = mention?.replace(/[<@&>]/g, "");
+        if (!roleId) { await message.reply("❌ Usage: `!setowner_role @role` or `!setowner_role ROLE_ID`"); return; }
+        if (isOwnerRole(guildId, roleId)) { await message.reply({ embeds: [new EmbedBuilder().setTitle("⚠️ Already an Owner Role").setDescription(`<@&${roleId}> already grants owner access.`).setColor(0xfaa61a)] }); return; }
+        addOwnerRole(guildId, roleId);
+        await message.reply({ embeds: [new EmbedBuilder().setTitle("✅ Owner Role Added").setDescription(`Anyone with <@&${roleId}> now has owner-level access.`).setColor(0x57f287).setTimestamp()] });
+        break;
+      }
+
+      case "removeowner_role": {
+        if (!realOwner) { await message.reply({ embeds: [denyRealOwnerEmbed()] }); return; }
+        const mention = args[0];
+        const roleId = mention?.replace(/[<@&>]/g, "");
+        if (!roleId) { await message.reply("❌ Usage: `!removeowner_role @role` or `!removeowner_role ROLE_ID`"); return; }
+        if (!isOwnerRole(guildId, roleId)) { await message.reply(`❌ <@&${roleId}> is not an owner role.`); return; }
+        removeOwnerRole(guildId, roleId);
+        await message.reply({ embeds: [new EmbedBuilder().setTitle("🗑️ Owner Role Removed").setDescription(`<@&${roleId}> no longer grants owner access.`).setColor(0xed4245).setTimestamp()] });
+        break;
+      }
+
+      case "listowner_roles":
+        await message.reply({ embeds: [buildOwnerRolesEmbed(guildId)] });
         break;
 
       case "restart": {
@@ -2106,7 +2270,7 @@ export async function startBot() {
       const djoinChannel = getChannelLock(guildId, "djoin");
       if (djoinChannel && message.channelId === djoinChannel) {
         const guildOwnerId = message.guild?.ownerId ?? "";
-        const isOwner = isAuthorizedUser(guildOwnerId, guildId, message.author.id);
+        const isOwner = isAuthorizedMember(guildOwnerId, guildId, message.author.id, message.member);
         if (!isOwner) {
           setTimeout(() => { message.delete().catch(() => {}); }, 15_000);
         }
