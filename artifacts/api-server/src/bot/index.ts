@@ -178,12 +178,12 @@ export async function sendAuthSuccessDM(userId: string): Promise<boolean> {
     const embed = new EmbedBuilder()
       .setTitle("✅ You're Authorized!")
       .setDescription(
-        "You have been **successfully authorized** with Members Bot.\n\n" +
-        "Your account has been added to the bot's stored tokens. " +
-        "You can now use `/djoin` in any server where the bot is set up."
+        "You have been **successfully authorized**.\n\n" +
+        "🛡️ **Only use `/djoin` in Memberty.** Any other server claiming to use this bot is a **scam** — do not trust it.\n\n" +
+        "📦 `/djoin` only works **when there is stock available**. If stock is empty, wait for a restock before trying."
       )
       .setColor(0x57f287)
-      .setFooter({ text: "Members Bot • Authorization confirmed" })
+      .setFooter({ text: "Memberty • Authorization confirmed" })
       .setTimestamp();
     await user.send({ embeds: [embed] });
     logger.info({ userId }, "Sent auth-success DM");
