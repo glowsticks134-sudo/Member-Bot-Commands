@@ -32,14 +32,19 @@ const DAILY_RESTOCK_FILE = path.join(DATA_DIR, "daily_restock.json");
 const BOT_TOKEN = process.env["DISCORD_BOT_TOKEN"]!;
 export const CLIENT_ID = process.env["DISCORD_CLIENT_ID"]!;
 export const CLIENT_SECRET = process.env["DISCORD_CLIENT_SECRET"]!;
-const REPLIT_DOMAIN = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim();
-const RAILWAY_DOMAIN = process.env["RAILWAY_PUBLIC_DOMAIN"]?.trim();
-const PUBLIC_DOMAIN = REPLIT_DOMAIN ? `https://${REPLIT_DOMAIN}` : RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null;
-export const REDIRECT_URI =
-  process.env["REDIRECT_URI"] ??
-  (PUBLIC_DOMAIN
-    ? `${PUBLIC_DOMAIN}/redirect`
-    : `http://localhost:${process.env["PORT"] ?? 8080}/redirect`);
+
+// Resolve the OAuth redirect URI lazily so the auth-link generator and the
+// /redirect token-exchange always agree on the exact same value, no matter
+// where the env vars get populated (Replit, Railway, local dev, etc.).
+export function getRedirectUri(): string {
+  const explicit = process.env["REDIRECT_URI"]?.trim();
+  if (explicit) return explicit;
+  const replitDomain = (process.env["REPLIT_DOMAINS"] ?? "").split(",")[0]?.trim();
+  if (replitDomain) return `https://${replitDomain}/redirect`;
+  const railwayDomain = process.env["RAILWAY_PUBLIC_DOMAIN"]?.trim();
+  if (railwayDomain) return `https://${railwayDomain}/redirect`;
+  return `http://localhost:${process.env["PORT"] ?? 8080}/redirect`;
+}
 const PREFIX = "!";
 
 const MAX_ROLES_PER_GUILD = 10;
@@ -332,6 +337,10 @@ const slashCommands = [
     .addAttachmentOption((o) => o.setName("file").setDescription("Upload a .txt tokens file").setRequired(false))
     .addStringOption((o) => o.setName("tokens").setDescription("Paste tokens directly (userId,access,refresh per line)").setRequired(false)),
   new SlashCommandBuilder()
+    .setName("add_token")
+    .setDescription("(Owner only) Authorize a single account token for restocks")
+    .addStringOption((o) => o.setName("token").setDescription("Format: userId,accessToken,refreshToken").setRequired(true)),
+  new SlashCommandBuilder()
     .setName("addowner")
     .setDescription("(Server owner only) Grant a user owner-level access")
     .addUserOption((o) => o.setName("user").setDescription("User to grant access").setRequired(true)),
@@ -451,6 +460,7 @@ function buildHelpEmbed(): EmbedBuilder {
           "`/count` or `!count` — Stored token count\n" +
           "`/list_users` or `!list_users` — List authenticated users\n" +
           "`/restock` or `!restock` — Add bulk tokens (owners only)\n" +
+          "`/add_token token:userId,access,refresh` or `!add_token …` — Authorize one token (owners only)\n" +
           "`/clear_stock` or `!clear_stock` — Remove all stored tokens (owners only)\n" +
           "`/schedule_restock time:1h` or `!schedule_restock 1h` — Schedule a restock (owners only)\n" +
           "`/list_schedules` or `!list_schedules` — View pending schedules (owners only)\n" +
@@ -512,7 +522,7 @@ function buildGetTokenEmbed(userId: string): EmbedBuilder {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: "code",
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: getRedirectUri(),
     scope: "identify guilds.join",
     prompt: "consent",
     state: userId,
@@ -544,7 +554,7 @@ async function doAuthExchange(
       client_secret: CLIENT_SECRET,
       grant_type: "authorization_code",
       code,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: getRedirectUri(),
     });
     const res = await fetch("https://discord.com/api/v10/oauth2/token", {
       method: "POST",
@@ -1222,6 +1232,14 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
       break;
     }
 
+    case "add_token": {
+      if (!authorized) { await interaction.reply({ embeds: [denyEmbed()], flags: 64 }); return; }
+      const token = interaction.options.getString("token", true).trim();
+      await interaction.deferReply({ flags: 64 });
+      await interaction.editReply({ embeds: [await doRestock(token)] });
+      break;
+    }
+
     case "addowner": {
       if (!realOwner) { await interaction.reply({ embeds: [denyRealOwnerEmbed()], flags: 64 }); return; }
       const target = interaction.options.getUser("user", true);
@@ -1692,6 +1710,18 @@ async function handlePrefix(message: Message, client: Client) {
           raw = pastedText;
         }
         await loading.edit({ content: "", embeds: [await doRestock(raw)] });
+        break;
+      }
+
+      case "add_token": {
+        if (!authorized) { await message.reply({ embeds: [denyEmbed()] }); return; }
+        const token = args.join(" ").trim();
+        if (!token) {
+          await message.reply("❌ Usage: `!add_token userId,accessToken,refreshToken`");
+          return;
+        }
+        const loading = await message.reply("🔄 Authorizing token...");
+        await loading.edit({ content: "", embeds: [await doRestock(token)] });
         break;
       }
 
