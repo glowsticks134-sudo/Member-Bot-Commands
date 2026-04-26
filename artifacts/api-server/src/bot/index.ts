@@ -1441,6 +1441,13 @@ async function handleSlash(interaction: ChatInputCommandInteraction, client: Cli
   const guildId = interaction.guild?.id ?? "";
   const userId = interaction.user.id;
   const channelId = interaction.channelId;
+
+  if (guildId !== MAIN_GUILD_ID) {
+    await interaction.reply({ embeds: [wrongGuildEmbed()], flags: 64 });
+    logger.info({ cmd, userId, guildId }, "Blocked slash command outside main guild");
+    return;
+  }
+
   const authorized = isAuthorizedMember(guildOwnerId, guildId, userId, interaction.member);
   const realOwner = userId === guildOwnerId;
 
@@ -1970,6 +1977,15 @@ async function handlePrefix(message: Message, client: Client) {
   const guildId = message.guild?.id ?? "";
   const userId = message.author.id;
   const channelId = message.channelId;
+
+  if (guildId !== MAIN_GUILD_ID) {
+    try {
+      await message.reply({ embeds: [wrongGuildEmbed()] });
+    } catch { /* ignore */ }
+    logger.info({ cmd, userId, guildId }, "Blocked prefix command outside main guild");
+    return;
+  }
+
   const authorized = isAuthorizedMember(guildOwnerId, guildId, userId, message.member);
   const realOwner = userId === guildOwnerId;
 
