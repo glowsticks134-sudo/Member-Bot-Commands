@@ -48,3 +48,8 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+REDIRECT_URI = "https://1610fc57-6ee6-4314-8084-fce494d69559-00-x2mhe8feuw12.worf.replit.dev/redirect"
