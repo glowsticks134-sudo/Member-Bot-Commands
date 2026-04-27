@@ -1,0 +1,244 @@
+"""
+Gecko - Opt-in Announcement Bot
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import sqlite3
+from contextlib import closing
+from pathlib import Path
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+TOKEN = os.environ.get("DISCORD_TOKEN")
+DB_PATH = Path(os.environ.get("GECKO_DB", "gecko.sqlite3"))
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+log = logging.getLogger("gecko")
+
+# ---------------------------------------------------------------------------
+# Storage (SQLite)
+# ---------------------------------------------------------------------------
+
+
+def db_init() -> None:
+    with closing(sqlite3.connect(DB_PATH)) as con, con:
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS subscribers (
+                guild_id INTEGER NOT NULL,
+                user_id  INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, user_id)
+            )
+            """
+        )
+
+
+def db_add(guild_id: int, user_id: int) -> bool:
+    with closing(sqlite3.connect(DB_PATH)) as con, con:
+        cur = con.execute(
+            "INSERT OR IGNORE INTO subscribers (guild_id, user_id) VALUES (?, ?)",
+            (guild_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def db_remove(guild_id: int, user_id: int) -> bool:
+    with closing(sqlite3.connect(DB_PATH)) as con, con:
+        cur = con.execute(
+            "DELETE FROM subscribers WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def db_list(guild_id: int) -> list[int]:
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        rows = con.execute(
+            "SELECT user_id FROM subscribers WHERE guild_id = ?",
+            (guild_id,),
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# UI: persistent subscribe / unsubscribe buttons
+# ---------------------------------------------------------------------------
+
+
+class SubscribeView(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Subscribe",
+        style=discord.ButtonStyle.success,
+        custom_id="gecko:subscribe",
+        emoji="🔔",
+    )
+    async def subscribe(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if interaction.guild_id is None:
+            await interaction.response.send_message("This only works inside a server.", ephemeral=True)
+            return
+        added = db_add(interaction.guild_id, interaction.user.id)
+        msg = (
+            f"✅ You're subscribed to announcements for **{interaction.guild.name}**.\n"
+            "Click **Unsubscribe** on this message anytime to stop."
+            if added
+            else "You're already subscribed. Click **Unsubscribe** to stop."
+        )
+        await interaction.response.send_message(msg, ephemeral=True)
+
+    @discord.ui.button(
+        label="Unsubscribe",
+        style=discord.ButtonStyle.secondary,
+        custom_id="gecko:unsubscribe",
+        emoji="🔕",
+    )
+    async def unsubscribe(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        if interaction.guild_id is None:
+            await interaction.response.send_message("This only works inside a server.", ephemeral=True)
+            return
+        removed = db_remove(interaction.guild_id, interaction.user.id)
+        msg = "🔕 You've been unsubscribed." if removed else "You weren't subscribed."
+        await interaction.response.send_message(msg, ephemeral=True)
+
+
+# ---------------------------------------------------------------------------
+# Bot
+# ---------------------------------------------------------------------------
+
+
+class GeckoBot(commands.Bot):
+    def __init__(self) -> None:
+        intents = discord.Intents.default()
+        super().__init__(command_prefix="!", intents=intents)
+
+    async def setup_hook(self) -> None:
+        db_init()
+        self.add_view(SubscribeView())  # makes buttons survive restarts
+        await self.tree.sync()
+        log.info("Slash commands synced.")
+
+    async def on_ready(self) -> None:
+        log.info("Logged in as %s (id=%s)", self.user, self.user.id)
+
+
+bot = GeckoBot()
+
+
+def _build_embed(guild: discord.Guild) -> discord.Embed:
+    embed = discord.Embed(
+        title="📣 Announcement Subscriptions",
+        description=(
+            f"Want to get **{guild.name}** announcements as a DM?\n\n"
+            "Click **Subscribe** below to opt in. You can click **Unsubscribe** "
+            "anytime to stop. We'll only DM you when an admin posts an announcement."
+        ),
+        color=discord.Color.green(),
+    )
+    embed.set_footer(text="Gecko • Opt-in announcements")
+    return embed
+
+
+# ---------------------------------------------------------------------------
+# Slash commands
+# ---------------------------------------------------------------------------
+
+
+@bot.tree.command(name="setup-subscribe", description="Post the subscribe/unsubscribe embed in this channel.")
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.guild_only()
+async def setup_subscribe(interaction: discord.Interaction) -> None:
+    assert interaction.guild is not None
+    await interaction.channel.send(embed=_build_embed(interaction.guild), view=SubscribeView())
+    await interaction.response.send_message("Posted. ✅", ephemeral=True)
+
+
+@bot.tree.command(name="announce", description="DM an announcement to everyone subscribed in this server.")
+@app_commands.describe(message="The announcement to send.")
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.guild_only()
+async def announce(interaction: discord.Interaction, message: str) -> None:
+    assert interaction.guild is not None
+
+    user_ids = db_list(interaction.guild.id)
+    if not user_ids:
+        await interaction.response.send_message(
+            "No one is subscribed yet. Run `/setup-subscribe` to post the opt-in embed.",
+            ephemeral=True,
+        )
+        return
+
+    await interaction.response.send_message(f"Sending to {len(user_ids)} subscriber(s)…", ephemeral=True)
+
+    sent = failed = 0
+    guild_name = interaction.guild.name
+
+    for uid in user_ids:
+        user = bot.get_user(uid) or await _safe_fetch_user(uid)
+        if user is None:
+            failed += 1
+            continue
+
+        embed = discord.Embed(
+            title=f"📣 Announcement from {guild_name}",
+            description=message,
+            color=discord.Color.blurple(),
+        )
+        embed.set_footer(text="You opted in. Click Unsubscribe on the embed in the server to stop.")
+        try:
+            await user.send(embed=embed)
+            sent += 1
+        except discord.Forbidden:
+            failed += 1
+        except discord.HTTPException as e:
+            log.warning("DM to %s failed: %s", uid, e)
+            failed += 1
+
+        await asyncio.sleep(0.5)  # be nice to the rate limiter
+
+    await interaction.followup.send(f"Done. Sent: **{sent}**, Failed: **{failed}**.", ephemeral=True)
+
+
+@bot.tree.command(name="subscribers", description="Show how many people are subscribed in this server.")
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.guild_only()
+async def subscribers(interaction: discord.Interaction) -> None:
+    assert interaction.guild is not None
+    count = len(db_list(interaction.guild.id))
+    await interaction.response.send_message(f"**{count}** subscriber(s) in this server.", ephemeral=True)
+
+
+async def _safe_fetch_user(uid: int) -> discord.User | None:
+    try:
+        return await bot.fetch_user(uid)
+    except (discord.NotFound, discord.HTTPException):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    if not TOKEN:
+        raise SystemExit('DISCORD_TOKEN not set. Run: export DISCORD_TOKEN="your-token"')
+    bot.run(TOKEN)
+
+
+if __name__ == "__main__":
+    main()
