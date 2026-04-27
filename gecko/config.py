@@ -57,20 +57,21 @@ PREFIX = "!"
 MAX_ROLES_PER_GUILD = 10
 
 
+# Hardcoded redirect URL — must EXACTLY match the URL saved in the Discord
+# Developer Portal under OAuth2 → Redirects. Hardcoding it here means the bot
+# generates the same link no matter where it runs (Railway, Replit, etc.).
+DEFAULT_REDIRECT_URI = (
+    "https://087bb0ff-c90a-4c6f-8f47-a047ecb228dd-00-drlfehq5cfir.kirk.replit.dev/redirect"
+)
+
+
 def get_redirect_uri() -> str:
-    """Resolve the OAuth redirect URI lazily so the auth-link generator and
-    the /redirect token-exchange always agree on the exact same value, no
-    matter where the env vars get populated (Replit, Railway, local dev)."""
+    """Return the OAuth redirect URI. Always uses the hardcoded URL above
+    unless explicitly overridden by REDIRECT_URI env var."""
     explicit = os.environ.get("REDIRECT_URI", "").strip()
     if explicit:
         return explicit
-    replit = os.environ.get("REPLIT_DOMAINS", "").split(",")[0].strip()
-    if replit:
-        return f"https://{replit}/redirect"
-    railway = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
-    if railway:
-        return f"https://{railway}/redirect"
-    return f"http://localhost:{PORT}/redirect"
+    return DEFAULT_REDIRECT_URI
 
 
 def get_public_domain() -> str | None:

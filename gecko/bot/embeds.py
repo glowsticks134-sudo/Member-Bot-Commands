@@ -168,8 +168,10 @@ def get_token_embed(user_id: str) -> discord.Embed:
     e.add_field(
         name="📝 Steps",
         value=(
-            "1. Click the link\n2. Authorize the app\n"
-            "3. You'll be authorized automatically — no copy/paste needed."
+            "1. Click the link above\n"
+            "2. Click **Authorize** on Discord's page\n"
+            "3. You'll land on a page showing your **code** — tap **Copy /auth Command**\n"
+            "4. Come back here and paste it: `/auth code:YOUR_CODE`"
         ),
         inline=False,
     )
