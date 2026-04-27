@@ -11,9 +11,10 @@ import time
 from html import escape
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlencode
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import (
@@ -441,18 +442,133 @@ else:
         )
 
 
+# ─── OAuth start (build & redirect to Discord) ────────────────────────────────
+
+
+@app.get("/start")
+async def oauth_start(
+    user_id: Optional[str] = None,
+    client_id: Optional[str] = None,
+    scope: str = "identify guilds.join",
+):
+    """Build a Discord OAuth URL with THIS server's /redirect baked in and
+    send the user to Discord. Use this instead of bot-generated links so the
+    redirect_uri is guaranteed to match what's registered in the Dev Portal."""
+    cid = (client_id or CLIENT_ID or "").strip()
+    if not cid:
+        return _error_page(
+            "Missing client_id",
+            "No DISCORD_CLIENT_ID is configured on this Replit, and no "
+            "client_id was supplied in the URL.",
+            "Either set DISCORD_CLIENT_ID, or visit /start?client_id=YOUR_APP_ID",
+        )
+    state = (user_id or secrets.token_urlsafe(16)).strip()
+    params = {
+        "client_id": cid,
+        "response_type": "code",
+        "redirect_uri": get_redirect_uri(),
+        "scope": scope,
+        "prompt": "consent",
+        "state": state,
+    }
+    return RedirectResponse(
+        f"https://discord.com/oauth2/authorize?{urlencode(params)}",
+        status_code=302,
+    )
+
+
 # ─── Root ─────────────────────────────────────────────────────────────────────
 
 
-@app.get("/")
-async def root() -> JSONResponse:
+_HOME_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memberty OAuth Relay</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a2e; color: #eee; min-height: 100vh; margin: 0;
+    display: grid; place-items: center; padding: 20px;
+  }}
+  .card {{
+    max-width: 640px; width: 100%; padding: 36px;
+    background: #232347; border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.45);
+  }}
+  h1 {{ margin: 0 0 8px; font-size: 24px; }}
+  h2 {{ font-size: 16px; margin: 24px 0 8px; color: #c9c9d6; }}
+  p  {{ color: #c9c9d6; line-height: 1.55; margin: 8px 0; }}
+  .url {{
+    background: #14142b; padding: 14px; border-radius: 10px;
+    border: 1px solid #2a2a55; font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 13px; word-break: break-all; color: #57f287; margin: 8px 0;
+  }}
+  label {{ display: block; font-size: 13px; color: #c9c9d6; margin: 12px 0 6px; }}
+  input {{
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a2a55;
+    background: #14142b; color: #fff; font-size: 14px; font-family: inherit;
+  }}
+  button {{
+    margin-top: 16px; padding: 12px 18px; border: 0; border-radius: 10px;
+    background: #5865f2; color: #fff; font-weight: 600; font-size: 14px;
+    cursor: pointer; width: 100%;
+  }}
+  button:hover {{ background: #4752c4; }}
+  .hint {{ color: #888; font-size: 13px; margin-top: 14px; }}
+  code {{ background: #14142b; padding: 2px 6px; border-radius: 6px; }}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Memberty OAuth Relay</h1>
+    <p>This Replit catches Discord's OAuth redirect and shows you the code to paste into <code>/auth code:&lt;code&gt;</code>.</p>
+
+    <h2>1. Register this URL in the Discord Developer Portal</h2>
+    <p>Go to your app → <b>OAuth2 → Redirects</b> and save exactly:</p>
+    <div class="url">{redirect_uri}</div>
+
+    <h2>2. Start the OAuth flow</h2>
+    <p>Enter the IDs and click Authorize — this builds an OAuth link with the correct redirect baked in.</p>
+    <form method="get" action="/start">
+      <label>Discord Client ID (your app's Application ID)</label>
+      <input name="client_id" value="{client_id}" placeholder="e.g. 1490360526101024778" required>
+      <label>Your Discord User ID (used as state)</label>
+      <input name="user_id" placeholder="e.g. 1411750730380869828" required>
+      <button type="submit">Authorize with Discord</button>
+    </form>
+
+    <p class="hint">After authorizing, you'll see a code on this page — copy it and run <code>/auth code:CODE</code> in Discord.</p>
+  </div>
+</body>
+</html>
+"""
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root() -> HTMLResponse:
+    return HTMLResponse(
+        _HOME_PAGE.format(
+            redirect_uri=escape(get_redirect_uri()),
+            client_id=escape(CLIENT_ID or ""),
+        )
+    )
+
+
+@app.get("/api")
+async def api_root() -> JSONResponse:
     return JSONResponse(
         {
             "service": "gecko",
             "status": "ok",
+            "redirect_uri": get_redirect_uri(),
             "endpoints": {
-                "health": "/api/healthz",
+                "home": "/",
+                "start": "/start?client_id=...&user_id=...",
                 "redirect": "/redirect",
+                "health": "/api/healthz",
                 "dashboard_api": "/api/dashboard/*",
                 "dashboard_ui": "/dashboard/ (if built)",
             },
