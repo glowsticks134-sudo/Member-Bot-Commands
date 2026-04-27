@@ -1,28 +1,23 @@
-FROM node:20-alpine
-
-RUN npm install -g pnpm@10.26.1
+FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-COPY lib/db/package.json ./lib/db/
-COPY lib/api-zod/package.json ./lib/api-zod/
-COPY lib/api-spec/package.json ./lib/api-spec/
-COPY lib/api-client-react/package.json ./lib/api-client-react/
-COPY artifacts/api-server/package.json ./artifacts/api-server/
-COPY scripts/package.json ./scripts/
+# Copy dependency files first for layer caching
+COPY pyproject.toml uv.lock ./
 
-RUN pnpm install --frozen-lockfile
+# Install dependencies (frozen = use lockfile exactly)
+RUN uv sync --frozen --no-dev --no-install-project
 
-COPY lib/ ./lib/
-COPY artifacts/api-server/ ./artifacts/api-server/
+# Copy application code
+COPY gecko/ ./gecko/
 
-RUN pnpm --filter @workspace/api-server run build
-
+# Create data directory for file-based storage
 RUN mkdir -p /app/artifacts/data
 
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["node", "artifacts/api-server/dist/index.mjs"]
+CMD ["uv", "run", "python", "-m", "gecko"]
