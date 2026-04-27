@@ -52,4 +52,3 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-REDIRECT_URI = "https://54046b22-2b7f-4a52-966c-113448b0c51c-00-vipvdsixukbt.janeway.replit.dev/redirect"
