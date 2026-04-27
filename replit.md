@@ -116,6 +116,14 @@ Both `/slash` and `!prefix` variants exist for the most common ones.
 2. They authorize the app; Discord redirects to `/redirect?code=…&state=USER_ID`.
 3. `gecko/server.py` exchanges the code, saves tokens to `stored_tokens.txt`,
    and DMs the user a confirmation embed via the bot.
+
+   The Replit workspace router proxies `/redirect` and `/api/` from the public
+   domain through the dashboard artifact's Vite dev server (see
+   `artifacts/dashboard/vite.config.ts`) into the Python service on port 3000.
+   The current public redirect URL is
+   `https://${REPLIT_DOMAINS}/redirect` and must be added to the Discord
+   Developer Portal's OAuth2 redirect allow-list.
+
 4. `/djoin` mass-joins from the merged set of `auths.txt` + `stored_tokens.txt`.
 
 ## Dashboard API

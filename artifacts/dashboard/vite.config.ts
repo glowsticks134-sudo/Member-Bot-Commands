@@ -62,6 +62,16 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/redirect": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+      "/api": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],
@@ -71,5 +81,15 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/redirect": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+      "/api": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+    },
   },
 });
