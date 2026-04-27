@@ -1,7 +1,6 @@
 """FastAPI server: OAuth redirect + dashboard API + health."""
 from __future__ import annotations
 
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -43,7 +42,6 @@ from .storage import (
     set_channel_lock,
     set_guild_role_limit,
 )
-from .tokens import exchange_code
 
 log = logging.getLogger("gecko.server")
 app = FastAPI(title="Gecko / Memberty API", version="1.0.0")
@@ -64,49 +62,84 @@ async def healthz_root() -> dict[str, str]:
 
 # ─── OAuth redirect ───────────────────────────────────────────────────────────
 
-_REDIRECT_TEMPLATE = """<!DOCTYPE html>
+_REDIRECT_PAGE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Memberty Authorization</title>
 <style>
+  * {{ box-sizing: border-box; }}
   body {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: #1a1a2e; color: #eee; display: grid; place-items: center;
-    min-height: 100vh; margin: 0;
+    min-height: 100vh; margin: 0; padding: 20px;
   }}
   .card {{
-    max-width: 520px; padding: 36px; border-radius: 16px;
+    max-width: 560px; width: 100%; padding: 36px; border-radius: 16px;
     background: #232347; box-shadow: 0 24px 64px rgba(0,0,0,.45);
-    text-align: center;
   }}
-  h1 {{ margin: 0 0 12px; font-size: 24px; }}
+  h1 {{ margin: 0 0 12px; font-size: 24px; text-align: center; }}
   p  {{ margin: 8px 0; color: #c9c9d6; line-height: 1.55; }}
-  .ok    {{ color: #57f287; }}
-  .err   {{ color: #ed4245; }}
-  .hint  {{ color: #888; font-size: 13px; margin-top: 22px; }}
-  code   {{ background: #14142b; padding: 2px 6px; border-radius: 6px; color: #fff; }}
+  .ok  {{ color: #57f287; }}
+  .err {{ color: #ed4245; }}
+  .hint {{ color: #888; font-size: 13px; margin-top: 22px; text-align: center; }}
+  code {{ background: #14142b; padding: 2px 6px; border-radius: 6px; color: #fff; }}
+  .code-box {{
+    margin: 22px 0 14px; padding: 16px; background: #14142b; border-radius: 10px;
+    border: 1px solid #2a2a55;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px; word-break: break-all; color: #57f287;
+  }}
+  .row {{ display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }}
+  button {{
+    flex: 1; min-width: 140px; padding: 12px 16px; border: 0; border-radius: 10px;
+    background: #5865f2; color: #fff; font-weight: 600; font-size: 14px;
+    cursor: pointer; transition: background .15s;
+  }}
+  button:hover {{ background: #4752c4; }}
+  button.secondary {{ background: #383868; }}
+  button.secondary:hover {{ background: #45457d; }}
+  .copied {{ background: #57f287 !important; color: #14142b !important; }}
+  .step {{
+    margin-top: 18px; padding: 14px 16px; background: #1a1a3d;
+    border-left: 3px solid #5865f2; border-radius: 6px; font-size: 14px;
+  }}
+  .step b {{ color: #fff; }}
 </style>
 </head>
 <body>
   <div class="card">
-    <h1 class="{cls}">{title}</h1>
-    <p>{body}</p>
-    <p class="hint">{hint}</p>
+    {content}
   </div>
+  <script>
+    function copyCode(id, btn) {{
+      const text = document.getElementById(id).innerText.trim();
+      navigator.clipboard.writeText(text).then(() => {{
+        const original = btn.innerText;
+        btn.innerText = "Copied!";
+        btn.classList.add("copied");
+        setTimeout(() => {{
+          btn.innerText = original;
+          btn.classList.remove("copied");
+        }}, 1500);
+      }});
+    }}
+  </script>
 </body>
 </html>
 """
 
 
-def _render_redirect(title: str, body: str, hint: str, ok: bool) -> HTMLResponse:
-    return HTMLResponse(
-        _REDIRECT_TEMPLATE.format(
-            title=escape(title),
-            body=escape(body),
-            hint=escape(hint),
-            cls="ok" if ok else "err",
-        )
+def _page(content_html: str) -> HTMLResponse:
+    return HTMLResponse(_REDIRECT_PAGE.format(content=content_html))
+
+
+def _error_page(title: str, body: str, hint: str) -> HTMLResponse:
+    return _page(
+        f'<h1 class="err">{escape(title)}</h1>'
+        f"<p>{escape(body)}</p>"
+        f'<p class="hint">{escape(hint)}</p>'
     )
 
 
@@ -117,42 +150,47 @@ async def oauth_redirect(
     error: Optional[str] = None,
 ):
     if error:
-        return _render_redirect(
-            "❌ Authorization Cancelled",
+        return _error_page(
+            "Authorization Cancelled",
             f"Discord returned: {error}",
             "You can close this tab and try again from inside Discord.",
-            ok=False,
         )
-    if not code or not state:
-        return _render_redirect(
-            "❌ Missing Code",
+    if not code:
+        return _error_page(
+            "Missing Code",
             "We didn't receive a code from Discord.",
             "Please re-run /get_token in Discord and try again.",
-            ok=False,
         )
-    ok, payload = await exchange_code(code, CLIENT_ID, CLIENT_SECRET, get_redirect_uri())
-    if not ok:
-        return _render_redirect(
-            "❌ Authorization Failed",
-            f"{payload}",
-            "Codes expire in 10 minutes — request a fresh one with /get_token.",
-            ok=False,
-        )
-    save_stored_token(state, payload["access_token"], payload["refresh_token"])
-    # Best-effort DM confirmation — fire and forget on the bot client.
-    try:
-        from .bot import bot
-        from .bot.restock import send_auth_success_dm
 
-        asyncio.create_task(send_auth_success_dm(bot, state))
-    except Exception:
-        log.debug("DM confirmation skipped (bot not ready)")
-    return _render_redirect(
-        "✅ You're Authorized!",
-        "You've been added to the authenticated user list. You may now close this tab.",
-        "If something goes wrong, run /get_token in Discord again.",
-        ok=True,
+    safe_code = escape(code)
+    state_block = ""
+    if state:
+        safe_state = escape(state)
+        state_block = (
+            '<div class="step" style="margin-top:24px">'
+            "<b>State (your Discord user ID):</b><br>"
+            f'<span style="font-family:ui-monospace,monospace;color:#c9c9d6">{safe_state}</span>'
+            "</div>"
+        )
+
+    content = (
+        '<h1 class="ok">Got Your Code</h1>'
+        "<p>Copy the code below and paste it into Discord with "
+        "<code>/auth code:&lt;code&gt;</code> to finish authorizing.</p>"
+        f'<div class="code-box" id="oauth-code">{safe_code}</div>'
+        '<div class="row">'
+        '  <button onclick="copyCode(\'oauth-code\', this)">Copy Code</button>'
+        '  <button class="secondary" onclick="copyCode(\'auth-cmd\', this)">Copy /auth Command</button>'
+        "</div>"
+        f'<div id="auth-cmd" style="display:none">/auth code:{safe_code}</div>'
+        '<div class="step">'
+        "<b>Next step:</b> open Discord and run "
+        f'<code>/auth code:{safe_code[:8]}…</code>'
+        "</div>"
+        f"{state_block}"
+        '<p class="hint">Codes expire in ~10 minutes — use it soon.</p>'
     )
+    return _page(content)
 
 
 # ─── Dashboard JWT-lite (HMAC-signed bearer token) ────────────────────────────
