@@ -61,7 +61,7 @@ MAX_ROLES_PER_GUILD = 10
 # Developer Portal under OAuth2 → Redirects. Hardcoding it here means the bot
 # generates the same link no matter where it runs (Railway, Replit, etc.).
 DEFAULT_REDIRECT_URI = (
-    "https://087bb0ff-c90a-4c6f-8f47-a047ecb228dd-00-drlfehq5cfir.kirk.replit.dev/auth/callback"
+    "https://member-bot-commands--manager28311.replit.app/auth/callback"
 )
 
 
