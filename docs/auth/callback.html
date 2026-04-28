@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memberty &middot; Authorization</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at top, #1e1b4b 0%, #0f0f23 60%);
+    color: #e5e7eb; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 520px; background: #1f1f3a; border: 1px solid #2e2e55;
+    border-radius: 18px; padding: 32px 28px; box-shadow: 0 30px 80px rgba(0,0,0,.5);
+  }
+  .badge {
+    width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+    margin: 0 auto 16px; font-size: 28px; font-weight: 700; color: #0f0f23;
+  }
+  .badge.ok { background: #22c55e; }
+  .badge.err { background: #ef4444; }
+  h1 { margin: 0 0 6px; text-align: center; font-size: 22px; }
+  .lead { color: #c7c7d6; text-align: center; margin: 8px 0 22px; line-height: 1.5; }
+  .cmd {
+    background: #0d0d23; border: 1px solid #34345f; border-radius: 12px;
+    padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 15px; color: #86efac; word-break: break-all; margin-bottom: 14px;
+  }
+  button {
+    width: 100%; padding: 14px; border: 0; border-radius: 12px; font-size: 15px;
+    font-weight: 600; cursor: pointer; transition: transform .05s, background .15s;
+    font-family: inherit;
+  }
+  button:active { transform: scale(.98); }
+  .primary { background: #5865f2; color: #fff; }
+  .primary:hover { background: #4752c4; }
+  .secondary { background: #2e2e55; color: #e5e7eb; margin-top: 10px; }
+  .secondary:hover { background: #3a3a6b; }
+  .copied { background: #22c55e !important; color: #0f0f23 !important; }
+  .raw { margin-top: 18px; }
+  .raw summary {
+    cursor: pointer; color: #9ca3af; font-size: 13px; padding: 6px 0;
+    list-style: none; user-select: none;
+  }
+  .raw summary::before { content: "\25B8 "; }
+  .raw[open] summary::before { content: "\25BE "; }
+  .codeOnly {
+    margin-top: 10px; background: #0d0d23; border: 1px solid #34345f;
+    border-radius: 10px; padding: 12px; font-family: ui-monospace, monospace;
+    font-size: 13px; color: #fbbf24; word-break: break-all;
+  }
+  .meta { color: #6b7280; font-size: 12px; text-align: center; margin: 18px 0 0; }
+  code { background: #0d0d23; padding: 2px 6px; border-radius: 5px; color: #c7c7d6; }
+</style>
+</head>
+<body>
+<div class="card" id="card"></div>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const state = params.get("state") || "";
+  const error = params.get("error");
+  const errDesc = params.get("error_description");
+  const card = document.getElementById("card");
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+    ));
+  }
+  function flashCopied(btn) {
+    const old = btn.innerText;
+    btn.innerText = "Copied!";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.innerText = old; btn.classList.remove("copied"); }, 1400);
+  }
+
+  if (error) {
+    card.innerHTML =
+      '<div class="badge err">\u2716</div>' +
+      '<h1>Authorization Cancelled</h1>' +
+      '<p class="lead">' + esc(errDesc || error) + '</p>';
+  } else if (!code) {
+    card.innerHTML =
+      '<div class="badge err">\u2716</div>' +
+      '<h1>No Code Received</h1>' +
+      '<p class="lead">Discord didn\'t include a code in the URL. Run /get_token again and click the new link.</p>';
+  } else {
+    const fullCommand = '/auth code:' + code;
+    card.innerHTML =
+      '<div class="badge ok">\u2713</div>' +
+      '<h1>You\'re Almost Done</h1>' +
+      '<p class="lead">Paste this command in Discord to finish authorizing:</p>' +
+      '<div class="cmd" id="cmd">' + esc(fullCommand) + '</div>' +
+      '<button id="copyBtn" class="primary">Copy /auth Command</button>' +
+      '<details class="raw">' +
+        '<summary>Show raw code only</summary>' +
+        '<div class="codeOnly" id="rawCode">' + esc(code) + '</div>' +
+        '<button class="secondary" id="copyRawBtn">Copy raw code</button>' +
+      '</details>' +
+      '<p class="meta">' +
+        (state ? 'State: <code>' + esc(state) + '</code> &middot; ' : '') +
+        'Code expires in ~10 minutes.' +
+      '</p>';
+    document.getElementById("copyBtn").onclick = function() {
+      const btn = this;
+      navigator.clipboard.writeText(fullCommand).then(() => flashCopied(btn));
+    };
+    document.getElementById("copyRawBtn").onclick = function() {
+      const btn = this;
+      navigator.clipboard.writeText(code).then(() => flashCopied(btn));
+    };
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memberty &middot; OAuth Relay</title>
+<style>
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #0f0f23; color: #e5e7eb; min-height: 100vh; margin: 0;
+    display: grid; place-items: center; padding: 24px;
+  }
+  .card {
+    max-width: 520px; padding: 32px; background: #1f1f3a;
+    border: 1px solid #2e2e55; border-radius: 18px;
+  }
+  h1 { margin: 0 0 12px; font-size: 22px; }
+  p { color: #c7c7d6; line-height: 1.55; }
+  code {
+    background: #0d0d23; padding: 6px 10px; border-radius: 6px;
+    color: #86efac; font-size: 13px; word-break: break-all;
+    display: inline-block; margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Memberty OAuth Relay</h1>
+    <p>This page exists only to receive Discord's OAuth redirect.
+    The actual landing page lives at <code>/auth/callback.html</code>.</p>
+    <p>If you got here by mistake, head back to Discord and run <code>/get_token</code>.</p>
+  </div>
+</body>
+</html>
