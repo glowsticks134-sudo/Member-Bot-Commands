@@ -9,6 +9,8 @@ id = "artifacts/mockup-sandbox"
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = [".pythonlibs/bin/python", "-m", "gecko"]
+build = ["bash", "-c", "pnpm install --frozen-lockfile=false && pnpm --filter @workspace/dashboard run build"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
