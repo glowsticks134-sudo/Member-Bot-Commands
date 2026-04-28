@@ -61,137 +61,167 @@ async def healthz_root() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# ─── OAuth redirect ───────────────────────────────────────────────────────────
+# ─── OAuth callback (fresh rewrite — /auth/callback) ──────────────────────────
 
-_REDIRECT_PAGE = """<!DOCTYPE html>
+
+def _callback_html(*, ok: bool, title: str, message: str = "", code: str = "", state: str = "") -> HTMLResponse:
+    """Render the OAuth callback page. Single source of truth for both success
+    and error states. Pure inline HTML so there are no template-format gotchas."""
+    accent = "#22c55e" if ok else "#ef4444"
+    icon = "&#10003;" if ok else "&#10006;"
+
+    if ok and code:
+        full_command = f"/auth code:{code}"
+        body_block = f"""
+        <p class="lead">Paste this command in Discord to finish authorizing:</p>
+
+        <div class="cmd" id="cmd">{escape(full_command)}</div>
+
+        <button id="copyBtn" class="primary" onclick="copyCmd()">
+          Copy /auth Command
+        </button>
+
+        <details class="raw">
+          <summary>Show raw code only</summary>
+          <div class="codeOnly" id="rawCode">{escape(code)}</div>
+          <button class="secondary" onclick="copyRaw()">Copy raw code</button>
+        </details>
+
+        <p class="meta">
+          {("State: <code>" + escape(state) + "</code> &middot; ") if state else ""}
+          Code expires in ~10 minutes.
+        </p>
+        """
+    else:
+        body_block = f'<p class="lead">{escape(message)}</p>'
+
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Memberty Authorization</title>
+<title>Memberty &middot; Authorization</title>
 <style>
-  * {{ box-sizing: border-box; }}
+  *,*::before,*::after {{ box-sizing: border-box; }}
+  html, body {{ margin: 0; padding: 0; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #1a1a2e; color: #eee; display: grid; place-items: center;
-    min-height: 100vh; margin: 0; padding: 20px;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at top, #1e1b4b 0%, #0f0f23 60%);
+    color: #e5e7eb; min-height: 100vh; display: grid; place-items: center; padding: 24px;
   }}
   .card {{
-    max-width: 560px; width: 100%; padding: 36px; border-radius: 16px;
-    background: #232347; box-shadow: 0 24px 64px rgba(0,0,0,.45);
+    width: 100%; max-width: 520px; background: #1f1f3a; border: 1px solid #2e2e55;
+    border-radius: 18px; padding: 32px 28px; box-shadow: 0 30px 80px rgba(0,0,0,.5);
   }}
-  h1 {{ margin: 0 0 12px; font-size: 24px; text-align: center; }}
-  p  {{ margin: 8px 0; color: #c9c9d6; line-height: 1.55; }}
-  .ok  {{ color: #57f287; }}
-  .err {{ color: #ed4245; }}
-  .hint {{ color: #888; font-size: 13px; margin-top: 22px; text-align: center; }}
-  code {{ background: #14142b; padding: 2px 6px; border-radius: 6px; color: #fff; }}
-  .code-box {{
-    margin: 22px 0 14px; padding: 16px; background: #14142b; border-radius: 10px;
-    border: 1px solid #2a2a55;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 14px; word-break: break-all; color: #57f287;
+  .badge {{
+    width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+    margin: 0 auto 16px; font-size: 28px; font-weight: 700; color: #0f0f23;
+    background: {accent};
   }}
-  .row {{ display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }}
+  h1 {{ margin: 0 0 6px; text-align: center; font-size: 22px; }}
+  .lead {{ color: #c7c7d6; text-align: center; margin: 8px 0 22px; line-height: 1.5; }}
+  .cmd {{
+    background: #0d0d23; border: 1px solid #34345f; border-radius: 12px;
+    padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 15px; color: #86efac; word-break: break-all; margin-bottom: 14px;
+  }}
   button {{
-    flex: 1; min-width: 140px; padding: 12px 16px; border: 0; border-radius: 10px;
-    background: #5865f2; color: #fff; font-weight: 600; font-size: 14px;
-    cursor: pointer; transition: background .15s;
+    width: 100%; padding: 14px; border: 0; border-radius: 12px; font-size: 15px;
+    font-weight: 600; cursor: pointer; transition: transform .05s, background .15s;
   }}
-  button:hover {{ background: #4752c4; }}
-  button.secondary {{ background: #383868; }}
-  button.secondary:hover {{ background: #45457d; }}
-  .copied {{ background: #57f287 !important; color: #14142b !important; }}
-  .step {{
-    margin-top: 18px; padding: 14px 16px; background: #1a1a3d;
-    border-left: 3px solid #5865f2; border-radius: 6px; font-size: 14px;
+  button:active {{ transform: scale(.98); }}
+  .primary {{ background: #5865f2; color: #fff; }}
+  .primary:hover {{ background: #4752c4; }}
+  .secondary {{
+    background: #2e2e55; color: #e5e7eb; margin-top: 10px;
   }}
-  .step b {{ color: #fff; }}
+  .secondary:hover {{ background: #3a3a6b; }}
+  .copied {{ background: #22c55e !important; color: #0f0f23 !important; }}
+  .raw {{ margin-top: 18px; }}
+  .raw summary {{
+    cursor: pointer; color: #9ca3af; font-size: 13px; padding: 6px 0;
+    list-style: none; user-select: none;
+  }}
+  .raw summary::before {{ content: "▸ "; }}
+  .raw[open] summary::before {{ content: "▾ "; }}
+  .codeOnly {{
+    margin-top: 10px; background: #0d0d23; border: 1px solid #34345f;
+    border-radius: 10px; padding: 12px; font-family: ui-monospace, monospace;
+    font-size: 13px; color: #fbbf24; word-break: break-all;
+  }}
+  .meta {{ color: #6b7280; font-size: 12px; text-align: center; margin: 18px 0 0; }}
+  code {{ background: #0d0d23; padding: 2px 6px; border-radius: 5px; color: #c7c7d6; }}
 </style>
 </head>
 <body>
   <div class="card">
-    {content}
+    <div class="badge">{icon}</div>
+    <h1>{escape(title)}</h1>
+    {body_block}
   </div>
   <script>
-    function copyCode(id, btn) {{
-      const text = document.getElementById(id).innerText.trim();
-      navigator.clipboard.writeText(text).then(() => {{
-        const original = btn.innerText;
-        btn.innerText = "Copied!";
-        btn.classList.add("copied");
-        setTimeout(() => {{
-          btn.innerText = original;
-          btn.classList.remove("copied");
-        }}, 1500);
-      }});
+    function flashCopied(btn) {{
+      const old = btn.innerText;
+      btn.innerText = "Copied!";
+      btn.classList.add("copied");
+      setTimeout(() => {{ btn.innerText = old; btn.classList.remove("copied"); }}, 1400);
+    }}
+    function copyCmd() {{
+      const text = document.getElementById("cmd").innerText.trim();
+      navigator.clipboard.writeText(text).then(() => flashCopied(document.getElementById("copyBtn")));
+    }}
+    function copyRaw() {{
+      const text = document.getElementById("rawCode").innerText.trim();
+      const btn = document.querySelector(".raw .secondary");
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn));
     }}
   </script>
 </body>
-</html>
-"""
+</html>"""
+    return HTMLResponse(html)
 
 
-def _page(content_html: str) -> HTMLResponse:
-    return HTMLResponse(_REDIRECT_PAGE.format(content=content_html))
-
-
-def _error_page(title: str, body: str, hint: str) -> HTMLResponse:
-    return _page(
-        f'<h1 class="err">{escape(title)}</h1>'
-        f"<p>{escape(body)}</p>"
-        f'<p class="hint">{escape(hint)}</p>'
-    )
-
-
-@app.get("/redirect")
-async def oauth_redirect(
+@app.get("/auth/callback")
+async def auth_callback(
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
+    error_description: Optional[str] = None,
 ):
+    """Brand-new OAuth landing page. Discord redirects here after the user
+    clicks Authorize. We don't exchange the code — we display it so the user
+    can paste it into Discord with /auth code:CODE."""
     if error:
-        return _error_page(
-            "Authorization Cancelled",
-            f"Discord returned: {error}",
-            "You can close this tab and try again from inside Discord.",
+        return _callback_html(
+            ok=False,
+            title="Authorization Cancelled",
+            message=(error_description or error or "Discord did not return a code."),
         )
     if not code:
-        return _error_page(
-            "Missing Code",
-            "We didn't receive a code from Discord.",
-            "Please re-run /get_token in Discord and try again.",
+        return _callback_html(
+            ok=False,
+            title="No Code Received",
+            message="Discord didn't include a code in the URL. Run /get_token again and click the new link.",
         )
-
-    safe_code = escape(code)
-    state_block = ""
-    if state:
-        safe_state = escape(state)
-        state_block = (
-            '<div class="step" style="margin-top:24px">'
-            "<b>State (your Discord user ID):</b><br>"
-            f'<span style="font-family:ui-monospace,monospace;color:#c9c9d6">{safe_state}</span>'
-            "</div>"
-        )
-
-    content = (
-        '<h1 class="ok">Got Your Code</h1>'
-        "<p>Copy the code below and paste it into Discord with "
-        "<code>/auth code:&lt;code&gt;</code> to finish authorizing.</p>"
-        f'<div class="code-box" id="oauth-code">{safe_code}</div>'
-        '<div class="row">'
-        '  <button onclick="copyCode(\'oauth-code\', this)">Copy Code</button>'
-        '  <button class="secondary" onclick="copyCode(\'auth-cmd\', this)">Copy /auth Command</button>'
-        "</div>"
-        f'<div id="auth-cmd" style="display:none">/auth code:{safe_code}</div>'
-        '<div class="step">'
-        "<b>Next step:</b> open Discord and run "
-        f'<code>/auth code:{safe_code[:8]}…</code>'
-        "</div>"
-        f"{state_block}"
-        '<p class="hint">Codes expire in ~10 minutes — use it soon.</p>'
+    return _callback_html(
+        ok=True,
+        title="You're Almost Done",
+        code=code,
+        state=state or "",
     )
-    return _page(content)
+
+
+# Backwards-compat alias: old links still land somewhere useful.
+@app.get("/redirect")
+async def oauth_redirect_alias(
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    error_description: Optional[str] = None,
+):
+    return await auth_callback(
+        code=code, state=state, error=error, error_description=error_description
+    )
 
 
 # ─── Dashboard JWT-lite (HMAC-signed bearer token) ────────────────────────────
