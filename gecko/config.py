@@ -61,7 +61,7 @@ MAX_ROLES_PER_GUILD = 10
 # Developer Portal under OAuth2 → Redirects. Hardcoding it here means the bot
 # generates the same link no matter where it runs (Railway, Replit, etc.).
 DEFAULT_REDIRECT_URI = (
-    "https://glowsticks134-sudo.github.io/Member-Bot-Commands/auth/callback.html"
+    "https://member-bot-commands--manager28311.replit.app/dashboard/auth-callback.html"
 )
 
 
