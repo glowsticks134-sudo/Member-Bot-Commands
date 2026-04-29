@@ -37,7 +37,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=3000 .pythonlibs/bin/python -m gecko"
+args = "PORT=3000 npx tsx src/index.ts"
 waitForPort = 3000
 
 [agent]
