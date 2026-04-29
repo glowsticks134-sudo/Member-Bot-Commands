@@ -1,5 +1,7 @@
 import express, { type Request, type Response } from "express";
-import { PORT } from "./config.js";
+import { PORT, CLIENT_ID, CLIENT_SECRET, MAIN_GUILD_ID } from "./config.js";
+import { exchangeCode, fetchOAuthUserId } from "./oauth.js";
+import { saveUserAuth } from "./storage/tokens.js";
 
 function escapeHtml(s: string): string {
   return s
@@ -149,7 +151,45 @@ function renderOAuthPage(opts: {
 </html>`;
 }
 
-function handleOAuthLanding(req: Request, res: Response): void {
+function renderRedirectPage(guildId: string): string {
+  const deepLink = `discord://discord.com/channels/${guildId}`;
+  const webLink = `https://discord.com/channels/${guildId}`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="0; url=${deepLink}">
+<title>Returning to Discord…</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0}
+  body{min-height:100vh;padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#0b0d12;color:#f2f3f5;display:flex;align-items:center;justify-content:center}
+  .card{width:100%;max-width:420px;background:#181a20;border:1px solid #2a2d34;border-radius:14px;padding:28px 24px;text-align:center}
+  .icon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px;font-weight:700;color:#0b0d12;background:#3ba55d}
+  h1{margin:0;font-size:20px;font-weight:600}
+  .sub{color:#b9bbbe;margin:10px 0 22px;line-height:1.5;font-size:14px}
+  .btn{display:inline-block;background:#5865f2;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 18px;border-radius:8px;margin:0 4px}
+  .btn:hover{background:#4752c4}.btn.alt{background:#4f545c}.btn.alt:hover{background:#5d626b}
+  .hint{color:#72767d;font-size:12px;margin:18px 0 0;line-height:1.5}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="icon">&#10003;</div>
+  <h1>Authorization Successful</h1>
+  <p class="sub">Returning you to Discord&hellip;</p>
+  <p>
+    <a class="btn" href="${deepLink}">Open in App</a>
+    <a class="btn alt" href="${webLink}">Open in Browser</a>
+  </p>
+  <p class="hint">If nothing happens, tap a button above.</p>
+</main>
+<script>setTimeout(function(){window.location.href=${JSON.stringify(deepLink)};},150);setTimeout(function(){window.location.href=${JSON.stringify(webLink)};},2200);</script>
+</body>
+</html>`;
+}
+
+async function handleOAuthLanding(req: Request, res: Response): Promise<void> {
   const code = typeof req.query.code === "string" ? req.query.code : null;
   const state = typeof req.query.state === "string" ? req.query.state : "";
   const error = typeof req.query.error === "string" ? req.query.error : null;
@@ -158,8 +198,10 @@ function handleOAuthLanding(req: Request, res: Response): void {
       ? req.query.error_description
       : null;
 
+  res.set("content-type", "text/html; charset=utf-8");
+
   if (error) {
-    res.set("content-type", "text/html; charset=utf-8").send(
+    res.send(
       renderOAuthPage({
         success: false,
         errorTitle: "Authorization Cancelled",
@@ -169,7 +211,7 @@ function handleOAuthLanding(req: Request, res: Response): void {
     return;
   }
   if (!code) {
-    res.set("content-type", "text/html; charset=utf-8").send(
+    res.send(
       renderOAuthPage({
         success: false,
         errorTitle: "No Code in URL",
@@ -178,9 +220,58 @@ function handleOAuthLanding(req: Request, res: Response): void {
     );
     return;
   }
-  res
-    .set("content-type", "text/html; charset=utf-8")
-    .send(renderOAuthPage({ success: true, code, state }));
+
+  // If OAuth credentials aren't configured, fall back to the copy-code page so
+  // an admin can still manually run /auth code:CODE in Discord.
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    res.send(renderOAuthPage({ success: true, code, state }));
+    return;
+  }
+
+  const exchanged = await exchangeCode(code);
+  if (!exchanged.ok) {
+    console.error("[oauth] exchange failed:", exchanged.error);
+    res.send(
+      renderOAuthPage({
+        success: false,
+        errorTitle: "Token Exchange Failed",
+        errorBody:
+          "Discord rejected the authorization code. Run /get_token in Discord again and click the new link.",
+      }),
+    );
+    return;
+  }
+
+  const { access_token, refresh_token } = exchanged.data;
+  const userId = (await fetchOAuthUserId(access_token)) ?? state;
+  if (!userId) {
+    res.send(
+      renderOAuthPage({
+        success: false,
+        errorTitle: "Couldn't Identify User",
+        errorBody:
+          "We exchanged the code but couldn't read your user ID from Discord.",
+      }),
+    );
+    return;
+  }
+
+  try {
+    saveUserAuth(userId, access_token, refresh_token);
+  } catch (e) {
+    console.error("[oauth] saveUserAuth failed:", e);
+    res.send(
+      renderOAuthPage({
+        success: false,
+        errorTitle: "Couldn't Save Token",
+        errorBody: "An internal error occurred while saving your token.",
+      }),
+    );
+    return;
+  }
+
+  console.log(`[oauth] saved token for user ${userId}`);
+  res.send(renderRedirectPage(MAIN_GUILD_ID));
 }
 
 export function startServer(): void {

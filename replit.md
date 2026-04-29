@@ -123,11 +123,17 @@ Both `/slash` and `!prefix` variants exist for the most common ones.
 1. User runs `/get_token` → receives an authorization link.
 2. They authorize the app; Discord redirects to
    `/auth/callback?code=…&state=USER_ID`.
-3. The Express server renders a page showing the code and a `/auth code:CODE`
-   command pre-filled, with a one-tap **Copy** button.
-4. The user pastes that into Discord and the bot saves their tokens to
+3. The Express server **exchanges the code with Discord server-side**, looks up
+   the user's ID via `users/@me`, and saves the access + refresh tokens to
    `stored_tokens.txt`.
+4. The browser is then automatically deep-linked to
+   `discord://discord.com/channels/<MAIN_GUILD_ID>` (with a 2 s fallback to the
+   web client). The user never has to copy or paste anything.
 5. `/djoin` mass-joins from `auths.txt` (the bulk-stock pool).
+
+If `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` are not set, the server falls
+back to the old copy-the-code page so an admin can still finish the flow
+manually with `/auth code:CODE`.
 
 ## Hardcoded constants
 
