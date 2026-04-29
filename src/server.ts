@@ -1,6 +1,12 @@
 import express, { type Request, type Response } from "express";
-import { PORT, CLIENT_ID, CLIENT_SECRET, MAIN_GUILD_ID } from "./config.js";
-import { exchangeCode, fetchOAuthUserId } from "./oauth.js";
+import {
+  PORT,
+  CLIENT_ID,
+  CLIENT_SECRET,
+  BOT_TOKEN,
+  MAIN_GUILD_ID,
+} from "./config.js";
+import { exchangeCode, fetchOAuthUserId, addUserToGuild } from "./oauth.js";
 import { saveUserAuth } from "./storage/tokens.js";
 
 function escapeHtml(s: string): string {
@@ -151,15 +157,44 @@ function renderOAuthPage(opts: {
 </html>`;
 }
 
-function renderRedirectPage(guildId: string): string {
+type JoinStatus = "added" | "in_guild" | "rate_limit" | "join_failed" | "skipped";
+
+function renderRedirectPage(guildId: string, status: JoinStatus): string {
   const deepLink = `discord://discord.com/channels/${guildId}`;
   const webLink = `https://discord.com/channels/${guildId}`;
+
+  const headline =
+    status === "added"
+      ? "Welcome to the Server"
+      : status === "in_guild"
+        ? "You're All Set"
+        : status === "rate_limit"
+          ? "Almost There"
+          : status === "join_failed"
+            ? "Authorization Saved"
+            : "Authorization Successful";
+
+  const subline =
+    status === "added"
+      ? "You've been added. Returning you to Discord&hellip;"
+      : status === "in_guild"
+        ? "You're already in the server. Returning you to Discord&hellip;"
+        : status === "rate_limit"
+          ? "Discord is rate-limiting joins right now. Tap below to open the server."
+          : status === "join_failed"
+            ? "Your token was saved but we couldn't auto-add you. Tap below to open Discord."
+            : "Returning you to Discord&hellip;";
+
+  // For added / in_guild we auto-redirect; for rate_limit / join_failed we let
+  // the user click so they aren't bounced into a weird app state.
+  const autoRedirect = status === "added" || status === "in_guild";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="0; url=${deepLink}">
+${autoRedirect ? `<meta http-equiv="refresh" content="0; url=${deepLink}">` : ""}
 <title>Returning to Discord…</title>
 <style>
   *,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0}
@@ -176,15 +211,15 @@ function renderRedirectPage(guildId: string): string {
 <body>
 <main class="card">
   <div class="icon">&#10003;</div>
-  <h1>Authorization Successful</h1>
-  <p class="sub">Returning you to Discord&hellip;</p>
+  <h1>${headline}</h1>
+  <p class="sub">${subline}</p>
   <p>
     <a class="btn" href="${deepLink}">Open in App</a>
     <a class="btn alt" href="${webLink}">Open in Browser</a>
   </p>
   <p class="hint">If nothing happens, tap a button above.</p>
 </main>
-<script>setTimeout(function(){window.location.href=${JSON.stringify(deepLink)};},150);setTimeout(function(){window.location.href=${JSON.stringify(webLink)};},2200);</script>
+${autoRedirect ? `<script>setTimeout(function(){window.location.href=${JSON.stringify(deepLink)};},150);setTimeout(function(){window.location.href=${JSON.stringify(webLink)};},2200);</script>` : ""}
 </body>
 </html>`;
 }
