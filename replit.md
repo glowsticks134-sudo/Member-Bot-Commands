@@ -108,6 +108,15 @@ Both `/slash` and `!prefix` variants exist for the most common ones.
                   `/daily_restock_status`
 - **Live embeds** — `/live_stock`, `/live_status`
 - **Gecko announcements** — `/setup_subscribe`, `/announce`, `/subscribers`
+- **Auto-ping (welcome)** — `/autoping_set`, `/autoping_clear`,
+                              `/autoping_status`, `/autoping_test`
+- **Bulk token file** — `/load_tokens`, `/tokens_file_path`
+                        (drop tokens into `artifacts/data/incoming_tokens.txt`,
+                         then run `/load_tokens`)
+- **Super-owner only** — `/blacklist`, `/unblacklist`, `/blacklist_list`,
+                          `/enable_server`, `/disable_server`,
+                          `/list_allowed_servers`, `/redirect_url`,
+                          `/refresh_redirect`, `/clear_redirect`
 - **Utility** — `/help`, `/invite`, `/add`
 
 ## Background loops

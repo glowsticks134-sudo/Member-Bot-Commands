@@ -1,0 +1,14 @@
+# Bulk token loader — drop this file at:  artifacts/data/incoming_tokens.txt
+# Then run /load_tokens in Discord (owner-only).
+#
+# One token per line, comma-separated:
+#   userId,accessToken,refreshToken
+#
+# Lines starting with # are ignored.
+# Blank lines are ignored.
+# Tokens already in stock are skipped (no duplicates).
+#
+# Examples (fake — replace with real tokens):
+# 123456789012345678,abcDEF1234567890.fakeAccessToken,xyz9876.fakeRefreshToken
+# 234567890123456789,qrsTUV0987654321.anotherAccess,mno1234.anotherRefresh
+

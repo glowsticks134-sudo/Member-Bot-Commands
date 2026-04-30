@@ -39,6 +39,13 @@ import {
   setAutoPing,
 } from "../storage/autoping.js";
 import { sendAutoPing } from "./autoping.js";
+import {
+  cleanIncomingTokens,
+  clearIncomingTokens,
+  ensureIncomingTokensFile,
+  INCOMING_TOKENS_FILE,
+  readIncomingTokensRaw,
+} from "../storage/bulkTokenFile.js";
 import { getRedirectUri } from "../config.js";
 import { exchangeCode } from "../oauth.js";
 import {
@@ -373,6 +380,27 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     {
       name: "autoping_test",
       description: "Send a test auto-ping for yourself",
+      type: 1,
+    },
+    {
+      name: "load_tokens",
+      description:
+        "Load tokens from artifacts/data/incoming_tokens.txt into bulk stock",
+      type: 1,
+      options: [
+        {
+          name: "keep_file",
+          description:
+            "If true, leaves the file as-is after loading (default: clears it)",
+          type: O.Boolean,
+          required: false,
+        },
+      ],
+    },
+    {
+      name: "tokens_file_path",
+      description:
+        "Show the path to the incoming-tokens file and create it if missing",
       type: 1,
     },
   ];
@@ -1126,6 +1154,48 @@ export async function handleSlash(
       if (!(await ownerGuard(i))) return;
       await i.reply({
         embeds: [E.autoPingStatusEmbed(i.guildId!)],
+        ephemeral: true,
+      });
+      return;
+    }
+    case "load_tokens": {
+      if (!(await ownerGuard(i))) return;
+      ensureIncomingTokensFile();
+      const raw = readIncomingTokensRaw();
+      const { cleaned, lineCount } = cleanIncomingTokens(raw);
+      if (lineCount === 0) {
+        await i.reply({
+          content:
+            `📄 The incoming-tokens file is empty.\n` +
+            `Path: \`${INCOMING_TOKENS_FILE}\`\n` +
+            "Drop tokens in (one per line: `userId,accessToken,refreshToken`) and run this again.",
+          ephemeral: true,
+        });
+        return;
+      }
+      await i.deferReply({ ephemeral: true });
+      const embed = await doRestock(cleaned);
+      const keepFile = i.options.getBoolean("keep_file") ?? false;
+      if (!keepFile) clearIncomingTokens();
+      await i.followUp({
+        embeds: [embed],
+        content: keepFile
+          ? `📄 Read **${lineCount}** line(s) from file (file kept).`
+          : `📄 Read **${lineCount}** line(s) from file. File cleared.`,
+        ephemeral: true,
+      });
+      return;
+    }
+    case "tokens_file_path": {
+      if (!(await ownerGuard(i))) return;
+      ensureIncomingTokensFile();
+      await i.reply({
+        content:
+          `📄 Drop your tokens here, one per line:\n` +
+          `\`${INCOMING_TOKENS_FILE}\`\n\n` +
+          `Format: \`userId,accessToken,refreshToken\`\n` +
+          `Lines starting with \`#\` are ignored.\n` +
+          `Then run \`/load_tokens\`.`,
         ephemeral: true,
       });
       return;

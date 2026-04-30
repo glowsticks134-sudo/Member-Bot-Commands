@@ -1,23 +1,27 @@
-FROM python:3.11-slim
+FROM node:20-alpine
+
+# Build deps for better-sqlite3 native module
+RUN apk add --no-cache python3 make g++ git
 
 WORKDIR /app
 
-# Install uv for fast dependency management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy dependency files first for layer caching
-COPY pyproject.toml uv.lock ./
+# Install dependencies (cache-friendly: copy lockfiles first)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY scripts/package.json ./scripts/
+COPY artifacts ./artifacts
+COPY lib ./lib
+RUN pnpm install --frozen-lockfile=false --prod=false
 
-# Install dependencies (frozen = use lockfile exactly)
-RUN uv sync --frozen --no-dev --no-install-project
+# Copy the rest of the source
+COPY . .
 
-# Copy application code
-COPY gecko/ ./gecko/
-
-# Create data directory for file-based storage
+# Persistent runtime data
 RUN mkdir -p /app/artifacts/data
 
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=3000
+EXPOSE 3000
 
-CMD ["uv", "run", "python", "-m", "gecko"]
+CMD ["pnpm", "start"]
