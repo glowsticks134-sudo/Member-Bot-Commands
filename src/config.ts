@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import "dotenv/config";
+import { getSavedRedirect } from "./storage/redirectConfig.js";
 
 export const PORT = Number(process.env.PORT ?? 3000);
 
@@ -50,6 +51,8 @@ export function getPublicDomain(): string | null {
 }
 
 export function getRedirectUri(): string {
+  const saved = getSavedRedirect();
+  if (saved && saved.length > 0) return saved;
   if (process.env.REDIRECT_URI) return process.env.REDIRECT_URI;
   const domain = getPublicDomain();
   if (domain) return `${domain}/auth/callback`;
