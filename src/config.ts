@@ -24,8 +24,11 @@ export const SUPER_OWNER_ID =
 export const MAX_ROLES_PER_GUILD = 10;
 export const PREFIX = "!";
 
+// Default redirect URL — this Repl's dev URL. It's served without publishing
+// the app and is stable for the lifetime of this Repl. If you ever fork or
+// recreate the Repl, update this string (or set the REDIRECT_URI env var).
 const HARDCODED_REDIRECT =
-  "https://member-bot-commands--manager28311.replit.app/auth/callback";
+  "https://53fcb274-a470-4f68-a4fd-8274154e81f8-00-1alipnha52njx.kirk.replit.dev/auth/callback";
 
 export function getPublicDomain(): string | null {
   if (process.env.REDIRECT_URI) {
