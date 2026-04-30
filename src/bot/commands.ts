@@ -33,6 +33,12 @@ import {
   clearSavedRedirect,
   saveRedirect,
 } from "../storage/redirectConfig.js";
+import {
+  clearAutoPing,
+  getAutoPing,
+  setAutoPing,
+} from "../storage/autoping.js";
+import { sendAutoPing } from "./autoping.js";
 import { getRedirectUri } from "../config.js";
 import { exchangeCode } from "../oauth.js";
 import {
@@ -318,6 +324,55 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     {
       name: "clear_redirect",
       description: "Clear the saved redirect URL and fall back to defaults (super-owner only)",
+      type: 1,
+    },
+    {
+      name: "autoping_set",
+      description:
+        "Auto-ping new members in a channel when they join (no per-server limit)",
+      type: 1,
+      options: [
+        {
+          name: "channel",
+          description: "Channel to send the welcome ping in",
+          type: O.Channel,
+          required: true,
+          channel_types: [
+            ChannelType.GuildText,
+            ChannelType.GuildAnnouncement,
+            ChannelType.PublicThread,
+            ChannelType.PrivateThread,
+            ChannelType.AnnouncementThread,
+          ],
+        },
+        {
+          name: "message",
+          description:
+            "Template. Placeholders: {user} {username} {server} {count}",
+          type: O.String,
+          required: false,
+        },
+        {
+          name: "role",
+          description: "Optional extra role to ping along with the new member",
+          type: O.Role,
+          required: false,
+        },
+      ],
+    },
+    {
+      name: "autoping_clear",
+      description: "Disable auto-ping in this server",
+      type: 1,
+    },
+    {
+      name: "autoping_status",
+      description: "Show the current auto-ping configuration for this server",
+      type: 1,
+    },
+    {
+      name: "autoping_test",
+      description: "Send a test auto-ping for yourself",
       type: 1,
     },
   ];
@@ -1024,6 +1079,77 @@ export async function handleSlash(
         content:
           `✅ Cleared saved redirect. Falling back to defaults.\n` +
           `**Active:** \`${active}\``,
+        ephemeral: true,
+      });
+      return;
+    }
+    case "autoping_set": {
+      if (!(await ownerGuard(i))) return;
+      const channel = i.options.getChannel("channel", true);
+      const messageOpt = i.options.getString("message");
+      const role = i.options.getRole("role");
+      const existing = getAutoPing(i.guildId!);
+      const message =
+        messageOpt?.trim() ||
+        existing?.message ||
+        "👋 Welcome {user} to **{server}**! You're member #{count}.";
+
+      setAutoPing(i.guildId!, {
+        channelId: channel.id,
+        message,
+        mentionRoleId: role?.id ?? null,
+      });
+
+      await i.reply({
+        content:
+          `✅ Auto-ping enabled in <#${channel.id}>.\n` +
+          (role ? `Pinging role: <@&${role.id}>\n` : "") +
+          `Message: \`${message}\`\n\n` +
+          `Use \`/autoping_test\` to preview it.`,
+        ephemeral: true,
+        allowedMentions: { parse: [] },
+      });
+      return;
+    }
+    case "autoping_clear": {
+      if (!(await ownerGuard(i))) return;
+      const cleared = clearAutoPing(i.guildId!);
+      await i.reply({
+        content: cleared
+          ? "✅ Auto-ping disabled for this server."
+          : "ℹ️ Auto-ping wasn't set up here.",
+        ephemeral: true,
+      });
+      return;
+    }
+    case "autoping_status": {
+      if (!(await ownerGuard(i))) return;
+      await i.reply({
+        embeds: [E.autoPingStatusEmbed(i.guildId!)],
+        ephemeral: true,
+      });
+      return;
+    }
+    case "autoping_test": {
+      if (!(await ownerGuard(i))) return;
+      const cfg = getAutoPing(i.guildId!);
+      if (!cfg) {
+        await i.reply({
+          content: "❌ Auto-ping isn't configured. Use `/autoping_set` first.",
+          ephemeral: true,
+        });
+        return;
+      }
+      const member = await i.guild!.members.fetch(i.user.id).catch(() => null);
+      if (!member) {
+        await i.reply({ content: "❌ Couldn't fetch your member info.", ephemeral: true });
+        return;
+      }
+      const r = await sendAutoPing(member, cfg);
+      await i.reply({
+        content: r.ok
+          ? `✅ Test ping sent in <#${cfg.channelId}>.`
+          : `❌ Failed: ${r.reason}`,
         ephemeral: true,
       });
       return;

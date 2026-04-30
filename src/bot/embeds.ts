@@ -21,6 +21,7 @@ import { readDailyRestock, readScheduledRestocks } from "../storage/schedules.js
 import { readAuthUsers, readStoredTokens } from "../storage/tokens.js";
 import { listAllowedGuilds } from "../storage/allowedGuilds.js";
 import { listBlacklisted } from "../storage/blacklist.js";
+import { getAutoPing } from "../storage/autoping.js";
 
 function now(): Date {
   return new Date();
@@ -509,6 +510,41 @@ export function channelLocksEmbed(guildId: string): EmbedBuilder {
         name: "🔐 auth",
         value: locks.auth ? `<#${locks.auth}>` : "Not locked",
         inline: true,
+      },
+    );
+}
+
+export function autoPingStatusEmbed(guildId: string): EmbedBuilder {
+  const cfg = getAutoPing(guildId);
+  if (!cfg) {
+    return new EmbedBuilder()
+      .setTitle("👋 Auto-Ping")
+      .setDescription(
+        "Auto-ping is **disabled** for this server.\n" +
+          "Use `/autoping_set` to turn it on.",
+      )
+      .setColor(COLOR.yellow)
+      .setTimestamp(now());
+  }
+  return new EmbedBuilder()
+    .setTitle("👋 Auto-Ping")
+    .setColor(COLOR.green)
+    .setTimestamp(now())
+    .addFields(
+      { name: "Channel", value: `<#${cfg.channelId}>`, inline: true },
+      {
+        name: "Role Mention",
+        value: cfg.mentionRoleId ? `<@&${cfg.mentionRoleId}>` : "None",
+        inline: true,
+      },
+      { name: "Message Template", value: `\`\`\`${cfg.message}\`\`\`` },
+      {
+        name: "Placeholders",
+        value:
+          "`{user}` — mention the new member\n" +
+          "`{username}` — their name (no ping)\n" +
+          "`{server}` — server name\n" +
+          "`{count}` — current member count",
       },
     );
 }

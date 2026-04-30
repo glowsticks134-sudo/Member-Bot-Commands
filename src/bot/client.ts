@@ -12,6 +12,7 @@ import { handlePrefix } from "./prefix.js";
 import { handleControlPanelButton } from "./controlPanel.js";
 import { handleSubscribeButton } from "./subscribeView.js";
 import { startLoops } from "./loops.js";
+import { attachAutoPing } from "./autoping.js";
 
 export interface LiveMessageRef {
   channelId: string;
@@ -101,6 +102,8 @@ export function makeBot(): { client: Client; state: BotState } {
   });
 
   client.on(Events.Error, (e) => console.error("[discord] client error", e));
+
+  attachAutoPing(client);
 
   return { client, state };
 }
