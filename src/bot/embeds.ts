@@ -10,6 +10,7 @@ import {
   COLOR,
   HARDCODED_OWNERS,
   MAX_ROLES_PER_GUILD,
+  SUPER_OWNER_ID,
   getPublicDomain,
   getRedirectUri,
 } from "../config.js";
@@ -18,6 +19,8 @@ import { getGuildOwnerRoles } from "../storage/owners.js";
 import { getGuildRoleLimits } from "../storage/roles.js";
 import { readDailyRestock, readScheduledRestocks } from "../storage/schedules.js";
 import { readAuthUsers, readStoredTokens } from "../storage/tokens.js";
+import { listAllowedGuilds } from "../storage/allowedGuilds.js";
+import { listBlacklisted } from "../storage/blacklist.js";
 
 function now(): Date {
   return new Date();
@@ -526,6 +529,92 @@ export function denyRealOwnerEmbed(): EmbedBuilder {
     .setTitle("❌ Access Denied")
     .setDescription("Only the **real server owner** can use this command.")
     .setColor(COLOR.red);
+}
+
+export function denySuperOwnerEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("🔒 Private Command")
+    .setDescription(
+      "This command can only be used by the **bot's super-owner**.",
+    )
+    .setColor(COLOR.red);
+}
+
+export function blacklistedEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("⛔ You Are Blacklisted")
+    .setDescription(
+      "You have been **blacklisted** from using this bot.\n\n" +
+        "If you think this is a mistake, contact the bot's super-owner.",
+    )
+    .setColor(COLOR.red);
+}
+
+export function blacklistListEmbed(): EmbedBuilder {
+  const users = listBlacklisted();
+  if (users.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("⛔ Blacklist")
+      .setDescription("No users are blacklisted.")
+      .setColor(COLOR.yellow)
+      .setTimestamp(now());
+  }
+  const lines = users.map((u) => `• <@${u}> (\`${u}\`)`);
+  return new EmbedBuilder()
+    .setTitle(`⛔ Blacklist (${users.length})`)
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.red)
+    .setTimestamp(now())
+    .setFooter({
+      text: "Use /unblacklist user_id:ID to remove someone",
+    });
+}
+
+export function allowedGuildsEmbed(mainGuildId: string): EmbedBuilder {
+  const extras = listAllowedGuilds();
+  const lines = [
+    `🏠 \`${mainGuildId}\` — **main server** (always allowed)`,
+  ];
+  if (extras.length === 0) {
+    lines.push("\n*No extra servers enabled.*");
+    lines.push(
+      "Use `/enable_server server_id:ID` to allow another server to use this bot.",
+    );
+  } else {
+    lines.push("\n**Extra enabled servers:**");
+    for (const g of extras) lines.push(`• \`${g}\``);
+  }
+  return new EmbedBuilder()
+    .setTitle(`✅ Allowed Servers (${extras.length + 1})`)
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.blurple)
+    .setTimestamp(now());
+}
+
+export function redirectUrlEmbed(): EmbedBuilder {
+  const redirect = getRedirectUri();
+  const domain = getPublicDomain() ?? "(none detected)";
+  return new EmbedBuilder()
+    .setTitle("🔗 OAuth Redirect URL")
+    .setDescription(
+      "Add the URL below as a **Redirect** in your Discord application " +
+        "(Developer Portal → OAuth2 → Redirects). After saving, the " +
+        "`/get_token` flow will work without publishing the app.",
+    )
+    .setColor(COLOR.blurple)
+    .setTimestamp(now())
+    .addFields(
+      { name: "📋 Redirect URI", value: `\`${redirect}\`` },
+      { name: "🌐 Public domain", value: `\`${domain}\``, inline: true },
+      {
+        name: "ℹ️ Super-owner",
+        value: `<@${SUPER_OWNER_ID}>`,
+        inline: true,
+      },
+    )
+    .setFooter({
+      text: "This URL is auto-derived from REPLIT_DEV_DOMAIN — no publish needed.",
+    });
 }
 
 export function noTokensEmbed(): EmbedBuilder {

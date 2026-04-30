@@ -4,6 +4,8 @@ import { exchangeCode } from "../oauth.js";
 import { saveUserAuth } from "../storage/tokens.js";
 import { dbCount, dbList } from "../storage/subscribers.js";
 import { checkChannelLock } from "../storage/locks.js";
+import { isAllowedGuild } from "../storage/allowedGuilds.js";
+import { isBlacklisted } from "../storage/blacklist.js";
 import * as E from "./embeds.js";
 import { isAuthorizedMember } from "./permissions.js";
 import {
@@ -33,7 +35,15 @@ export async function handlePrefix(
 ): Promise<void> {
   if (message.author.bot || !message.guild) return;
   if (!message.content.startsWith(PREFIX)) return;
-  if (message.guild.id !== MAIN_GUILD_ID) return;
+  if (message.guild.id !== MAIN_GUILD_ID && !isAllowedGuild(message.guild.id)) return;
+  if (isBlacklisted(message.author.id)) {
+    try {
+      await message.reply({ embeds: [E.blacklistedEmbed()] });
+    } catch {
+      /* noop */
+    }
+    return;
+  }
 
   const parts = message.content.slice(PREFIX.length).trim().split(/\s+/);
   if (parts.length === 0 || !parts[0]) return;

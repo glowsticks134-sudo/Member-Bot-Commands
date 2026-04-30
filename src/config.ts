@@ -16,6 +16,11 @@ export const HARDCODED_OWNERS = [
   "1486174745333465179",
 ];
 
+// Single super-owner who can run private bot-wide commands
+// (blacklist, enable_server, etc). Override with env var SUPER_OWNER_ID.
+export const SUPER_OWNER_ID =
+  process.env.SUPER_OWNER_ID ?? "1411750730380869828";
+
 export const MAX_ROLES_PER_GUILD = 10;
 export const PREFIX = "!";
 
@@ -31,6 +36,9 @@ export function getPublicDomain(): string | null {
       // fallthrough
     }
   }
+  // Replit dev domain — works while developing, no publish required.
+  const dev = process.env.REPLIT_DEV_DOMAIN?.trim();
+  if (dev) return `https://${dev}`;
   const replit = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
   if (replit) return `https://${replit}`;
   const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
@@ -40,6 +48,8 @@ export function getPublicDomain(): string | null {
 
 export function getRedirectUri(): string {
   if (process.env.REDIRECT_URI) return process.env.REDIRECT_URI;
+  const domain = getPublicDomain();
+  if (domain) return `${domain}/auth/callback`;
   return HARDCODED_REDIRECT;
 }
 

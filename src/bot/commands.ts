@@ -17,7 +17,18 @@ import {
   MAIN_GUILD_ID,
   MAX_ROLES_PER_GUILD,
   PREFIX,
+  SUPER_OWNER_ID,
 } from "../config.js";
+import {
+  addAllowedGuild,
+  isAllowedGuild,
+  removeAllowedGuild,
+} from "../storage/allowedGuilds.js";
+import {
+  addBlacklisted,
+  isBlacklisted,
+  removeBlacklisted,
+} from "../storage/blacklist.js";
 import { exchangeCode } from "../oauth.js";
 import {
   saveUserAuth,
@@ -236,6 +247,55 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     { name: "subscribers", description: "Count subscribers in this server", type: 1 },
     { name: "live_stock", description: "Post a live-updating stock embed (owners only)", type: 1 },
     { name: "live_status", description: "Post a live-updating status embed (owners only)", type: 1 },
+
+    // ─── Super-owner / private commands ──────────────────────────────────
+    {
+      name: "blacklist",
+      description: "Blacklist a user from the bot (super-owner only)",
+      type: 1,
+      options: [
+        { name: "user_id", description: "User ID to blacklist", type: O.String, required: true },
+      ],
+    },
+    {
+      name: "unblacklist",
+      description: "Remove a user from the blacklist (super-owner only)",
+      type: 1,
+      options: [
+        { name: "user_id", description: "User ID to unblacklist", type: O.String, required: true },
+      ],
+    },
+    {
+      name: "blacklist_list",
+      description: "Show all blacklisted users (super-owner only)",
+      type: 1,
+    },
+    {
+      name: "enable_server",
+      description: "Allow another server to use this bot (super-owner only)",
+      type: 1,
+      options: [
+        { name: "server_id", description: "Server (guild) ID to enable", type: O.String, required: true },
+      ],
+    },
+    {
+      name: "disable_server",
+      description: "Disable an extra server (super-owner only)",
+      type: 1,
+      options: [
+        { name: "server_id", description: "Server (guild) ID to disable", type: O.String, required: true },
+      ],
+    },
+    {
+      name: "list_allowed_servers",
+      description: "List servers allowed to use this bot (super-owner only)",
+      type: 1,
+    },
+    {
+      name: "redirect_url",
+      description: "Show the OAuth redirect URL to add in the Discord Dev Portal (super-owner only)",
+      type: 1,
+    },
   ];
 }
 
@@ -287,8 +347,31 @@ async function realOwnerGuard(
 async function wrongGuildGuard(
   i: ChatInputCommandInteraction,
 ): Promise<boolean> {
-  if (!i.guildId || i.guildId !== MAIN_GUILD_ID) {
+  if (
+    !i.guildId ||
+    (i.guildId !== MAIN_GUILD_ID && !isAllowedGuild(i.guildId))
+  ) {
     await i.reply({ embeds: [E.wrongGuildEmbed()], ephemeral: true });
+    return false;
+  }
+  return true;
+}
+
+async function superOwnerGuard(
+  i: ChatInputCommandInteraction,
+): Promise<boolean> {
+  if (i.user.id !== SUPER_OWNER_ID) {
+    await i.reply({ embeds: [E.denySuperOwnerEmbed()], ephemeral: true });
+    return false;
+  }
+  return true;
+}
+
+async function blacklistGuard(
+  i: ChatInputCommandInteraction,
+): Promise<boolean> {
+  if (isBlacklisted(i.user.id)) {
+    await i.reply({ embeds: [E.blacklistedEmbed()], ephemeral: true });
     return false;
   }
   return true;
@@ -328,6 +411,7 @@ export async function handleSlash(
   state: BotState,
   client: Client,
 ): Promise<void> {
+  if (!(await blacklistGuard(i))) return;
   if (!(await wrongGuildGuard(i))) return;
   const cmd = i.commandName;
 
@@ -763,6 +847,108 @@ export async function handleSlash(
       });
       return;
     }
+
+    // ─── Super-owner / private commands ──────────────────────────────────
+    case "blacklist": {
+      if (!(await superOwnerGuard(i))) return;
+      const uid = i.options.getString("user_id", true).trim();
+      if (!/^\d{5,25}$/.test(uid)) {
+        await i.reply({ content: "❌ That doesn't look like a Discord user ID.", ephemeral: true });
+        return;
+      }
+      if (uid === SUPER_OWNER_ID) {
+        await i.reply({ content: "❌ You can't blacklist yourself.", ephemeral: true });
+        return;
+      }
+      const added = addBlacklisted(uid);
+      await i.reply({
+        content: added
+          ? `⛔ <@${uid}> (\`${uid}\`) has been **blacklisted**.`
+          : `ℹ️ <@${uid}> is already blacklisted.`,
+        ephemeral: true,
+      });
+      return;
+    }
+    case "unblacklist": {
+      if (!(await superOwnerGuard(i))) return;
+      const uid = i.options.getString("user_id", true).trim();
+      const removed = removeBlacklisted(uid);
+      await i.reply({
+        content: removed
+          ? `✅ <@${uid}> (\`${uid}\`) has been **unblacklisted**.`
+          : `ℹ️ <@${uid}> was not on the blacklist.`,
+        ephemeral: true,
+      });
+      return;
+    }
+    case "blacklist_list": {
+      if (!(await superOwnerGuard(i))) return;
+      await i.reply({ embeds: [E.blacklistListEmbed()], ephemeral: true });
+      return;
+    }
+    case "enable_server": {
+      if (!(await superOwnerGuard(i))) return;
+      const sid = i.options.getString("server_id", true).trim();
+      if (!/^\d{5,25}$/.test(sid)) {
+        await i.reply({ content: "❌ That doesn't look like a Discord server ID.", ephemeral: true });
+        return;
+      }
+      if (sid === MAIN_GUILD_ID) {
+        await i.reply({ content: "ℹ️ The main server is always allowed.", ephemeral: true });
+        return;
+      }
+      const added = addAllowedGuild(sid);
+      // Try to register slash commands in the new server (if bot is in it)
+      let registered = false;
+      try {
+        if (client.guilds.cache.has(sid)) {
+          await registerCommandsForGuild(sid);
+          registered = true;
+        }
+      } catch (e) {
+        console.error("[enable_server] failed to register commands", e);
+      }
+      const note = registered
+        ? "Slash commands have been registered in that server."
+        : "The bot isn't in that server yet — invite it, then commands will register automatically.";
+      await i.reply({
+        content: added
+          ? `✅ Server \`${sid}\` is now **allowed** to use this bot.\n${note}`
+          : `ℹ️ Server \`${sid}\` was already allowed.\n${note}`,
+        ephemeral: true,
+      });
+      return;
+    }
+    case "disable_server": {
+      if (!(await superOwnerGuard(i))) return;
+      const sid = i.options.getString("server_id", true).trim();
+      if (sid === MAIN_GUILD_ID) {
+        await i.reply({ content: "❌ You can't disable the main server.", ephemeral: true });
+        return;
+      }
+      const removed = removeAllowedGuild(sid);
+      await i.reply({
+        content: removed
+          ? `✅ Server \`${sid}\` is no longer allowed to use this bot.`
+          : `ℹ️ Server \`${sid}\` was not in the allowed list.`,
+        ephemeral: true,
+      });
+      return;
+    }
+    case "list_allowed_servers": {
+      if (!(await superOwnerGuard(i))) return;
+      await i.reply({
+        embeds: [E.allowedGuildsEmbed(MAIN_GUILD_ID)],
+        ephemeral: true,
+      });
+      return;
+    }
+    case "redirect_url": {
+      if (!(await superOwnerGuard(i))) return;
+      await i.reply({ embeds: [E.redirectUrlEmbed()], ephemeral: true });
+      return;
+    }
+
     default:
       await i.reply({ content: `❌ Unknown command: \`${cmd}\``, ephemeral: true });
   }
