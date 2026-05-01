@@ -1,30 +1,26 @@
 FROM node:20-alpine
 
-# Build deps for better-sqlite3 native module
+# Native build tools for better-sqlite3
 RUN apk add --no-cache python3 make g++ git
 
 WORKDIR /app
 
-# Install pnpm via npm (simpler and more reliable than corepack)
-RUN npm install -g pnpm tsx
+# Use a minimal standalone package.json — avoids the complex pnpm workspace
+COPY docker-package.json ./package.json
+RUN npm install --ignore-scripts
+RUN npm rebuild better-sqlite3
 
-# Install dependencies (cache-friendly: copy lockfiles first)
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY scripts/package.json ./scripts/
-COPY artifacts/dashboard/package.json ./artifacts/dashboard/
-COPY artifacts/mockup-sandbox/package.json ./artifacts/mockup-sandbox/
-COPY lib ./lib
-RUN pnpm install --frozen-lockfile=false
+# Install tsx globally for running TypeScript directly
+RUN npm install -g tsx
 
-# Copy source
+# Copy source code
 COPY src ./src
-COPY tsconfig*.json ./
+COPY tsconfig.bot.json ./tsconfig.json
 
-# Persistent runtime data
+# Runtime data directory
 RUN mkdir -p /app/artifacts/data
 
-ENV PORT=3000
+ENV NODE_ENV=production
 EXPOSE 3000
 
-# Run directly with tsx — no pnpm wrapper needed at runtime
 CMD ["tsx", "src/index.ts"]
