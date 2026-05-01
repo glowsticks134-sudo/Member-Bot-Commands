@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 
 import { BOT_TOKEN } from "../config.js";
+import { botStatus } from "../botStatus.js";
 import { dbInit } from "../storage/subscribers.js";
 import { handleSlash, registerCommandsForGuild } from "./commands.js";
 import { handlePrefix } from "./prefix.js";
@@ -45,6 +46,9 @@ export function makeBot(): { client: Client; state: BotState } {
 
   client.once(Events.ClientReady, async (c) => {
     console.log(`[discord] ready as ${c.user.tag}`);
+    botStatus.connected = true;
+    botStatus.tag = c.user.tag;
+    botStatus.connectedAt = new Date();
     state.botStartTime = new Date();
     dbInit();
     for (const g of c.guilds.cache.values()) {

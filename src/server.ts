@@ -2,6 +2,7 @@ import express, { type Request, type Response } from "express";
 import { PORT, CLIENT_ID, CLIENT_SECRET, MAIN_GUILD_ID } from "./config.js";
 import { exchangeCode, fetchOAuthUserId } from "./oauth.js";
 import { saveUserAuth } from "./storage/tokens.js";
+import { botStatus } from "./botStatus.js";
 
 function escapeHtml(s: string): string {
   return s
@@ -278,7 +279,49 @@ export function startServer(): void {
   const app = express();
 
   app.get("/healthz", (_req, res) => {
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      bot: botStatus.connected ? "connected" : "disconnected",
+      tag: botStatus.tag,
+    });
+  });
+
+  app.get("/status", (_req, res) => {
+    const upSec = Math.floor((Date.now() - botStatus.startedAt.getTime()) / 1000);
+    const upStr = `${Math.floor(upSec / 3600)}h ${Math.floor((upSec % 3600) / 60)}m ${upSec % 60}s`;
+    const row = (label: string, ok: boolean, detail = "") =>
+      `<tr><td class="lbl">${label}</td><td class="${ok ? "ok" : "err"}">${ok ? "✓" : "✗"} ${ok ? "OK" : "MISSING"}${detail ? ` — ${detail}` : ""}</td></tr>`;
+    const html = `<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Memberty Bot — Status</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0b0d12;color:#f2f3f5;display:flex;align-items:flex-start;justify-content:center;min-height:100vh}
+.card{width:100%;max-width:520px;background:#181a20;border:1px solid #2a2d34;border-radius:14px;padding:28px 24px;margin-top:40px}
+h1{margin:0 0 4px;font-size:22px}
+.sub{color:#9aa0a6;font-size:13px;margin:0 0 20px}
+table{width:100%;border-collapse:collapse}
+td{padding:9px 12px;border-bottom:1px solid #2a2d34;font-size:14px}
+.lbl{color:#9aa0a6;width:180px}
+.ok{color:#3ba55d;font-weight:600}
+.err{color:#ed4245;font-weight:600}
+.hint{margin-top:20px;font-size:12px;color:#72767d;line-height:1.6}
+code{background:#0b0d12;padding:2px 6px;border-radius:4px;color:#b9bbbe}
+</style>
+</head><body><div class="card">
+<h1>🤖 Memberty Bot</h1>
+<p class="sub">Server uptime: ${upStr} &nbsp;|&nbsp; Started: ${botStatus.startedAt.toUTCString()}</p>
+<table>
+${row("Discord Bot", botStatus.connected, botStatus.tag ?? "")}
+${row("BOT_TOKEN", botStatus.tokenConfigured)}
+${row("CLIENT_ID", botStatus.clientIdConfigured)}
+${row("CLIENT_SECRET", botStatus.clientSecretConfigured)}
+</table>
+${!botStatus.tokenConfigured ? `<p class="hint">⚠️ <strong>DISCORD_BOT_TOKEN is not set.</strong><br>Add it in your Railway project → <em>Variables</em> tab. The Express server is running (that's why Railway shows "online") but the bot can't connect to Discord without the token.</p>` : ""}
+${botStatus.tokenConfigured && !botStatus.connected ? `<p class="hint">⚠️ Token is set but bot is not connected. The token may be wrong or revoked. Go to <strong>Discord Developer Portal → Bot → Reset Token</strong> and update the <code>DISCORD_BOT_TOKEN</code> variable in Railway.</p>` : ""}
+${botStatus.connected ? `<p class="hint">✅ Everything looks good. Bot is online as <strong>${botStatus.tag}</strong>.</p>` : ""}
+</div></body></html>`;
+    res.set("content-type", "text/html; charset=utf-8").send(html);
   });
 
   app.get("/", (_req, res) => {
