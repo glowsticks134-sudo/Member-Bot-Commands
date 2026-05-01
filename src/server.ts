@@ -339,7 +339,12 @@ ${botStatus.connected ? `<p class="hint">✅ Everything looks good. Bot is onlin
   app.get("/auth/callback", handleOAuthLanding);
   app.get("/redirect", handleOAuthLanding);
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`[server] listening on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on("error", (err) => {
+    console.error("[server] failed to start:", err);
+    process.exit(1);
   });
 }
