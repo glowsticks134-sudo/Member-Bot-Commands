@@ -10,9 +10,6 @@ COPY docker-package.json ./package.json
 RUN npm install --ignore-scripts
 RUN npm rebuild better-sqlite3
 
-# Install tsx globally for running TypeScript directly
-RUN npm install -g tsx
-
 # Copy source code
 COPY src ./src
 COPY tsconfig.bot.json ./tsconfig.json
@@ -21,6 +18,8 @@ COPY tsconfig.bot.json ./tsconfig.json
 RUN mkdir -p /app/artifacts/data
 
 ENV NODE_ENV=production
+
+# Railway injects PORT automatically based on this EXPOSE value
 EXPOSE 3000
 
-CMD ["tsx", "src/index.ts"]
+CMD ["node_modules/.bin/tsx", "src/index.ts"]
