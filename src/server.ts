@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { PORT, CLIENT_ID, CLIENT_SECRET, MAIN_GUILD_ID } from "./config.js";
+import { PORT, CLIENT_ID, CLIENT_SECRET, MAIN_GUILD_ID, getRedirectUri } from "./config.js";
 import { exchangeCode, fetchOAuthUserId, addUserToGuild } from "./oauth.js";
 import { saveUserAuth } from "./storage/tokens.js";
 import { botStatus } from "./botStatus.js";
@@ -136,23 +136,15 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // If OAuth credentials aren't configured, show the code so an admin can
-  // manually run /auth code:CODE in Discord.
+  // If OAuth credentials aren't configured, bail out clearly
   if (!CLIENT_ID || !CLIENT_SECRET) {
+    console.error("[oauth] callback hit but CLIENT_ID/CLIENT_SECRET not set");
     res.send(
       renderPage({
-        success: true,
-        title: "Authorization Received",
-        body: `
-          <p>Copy the command below and paste it into Discord:</p>
-          <div class="field-wrap">
-            <span class="lbl">Run this in Discord</span>
-            <div class="row">
-              <input id="cmd" class="field" type="text" readonly value="${escapeHtml(`/auth code:${code}`)}" onclick="this.select()">
-              <button class="copy" type="button" data-target="cmd">Copy</button>
-            </div>
-          </div>
-          <p class="hint">The code is one-time use and expires in ~10 minutes.</p>`,
+        success: false,
+        title: "Bot Not Configured",
+        body: `<p>The bot's OAuth credentials are not set on this server.</p>
+          <p class="hint">Set <code>DISCORD_CLIENT_ID</code> and <code>DISCORD_CLIENT_SECRET</code> in your Railway environment variables, then redeploy.</p>`,
       }),
     );
     return;
@@ -165,7 +157,9 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
       renderPage({
         success: false,
         title: "Token Exchange Failed",
-        body: `<p>Discord rejected the authorization code.</p><p class="hint">Run <code>/get_token</code> in Discord again and click the new link.</p>`,
+        body: `<p>Discord rejected the authorization code.</p>
+          <p class="hint">Most likely cause: the redirect URI registered in Discord doesn't exactly match <code>${escapeHtml(getRedirectUri())}</code>. Copy that URL and make sure it's listed in your Discord application's OAuth2 redirect list, then try again.</p>
+          <p class="hint">Error detail: <code>${escapeHtml(exchanged.error)}</code></p>`,
       }),
     );
     return;
