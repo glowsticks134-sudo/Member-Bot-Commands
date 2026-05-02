@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "1TwuJpYi5HAc8AR66wUme"
+uri = "file://artifacts/mockup-sandbox/public/images/memberty-hero-bg.png"
+type = "image"
+title = "Dark abstract tech background"
