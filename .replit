@@ -54,7 +54,3 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-
-[[ports]]
-localPort = 5000
-externalPort = 80
