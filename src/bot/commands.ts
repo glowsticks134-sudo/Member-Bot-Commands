@@ -30,10 +30,6 @@ import {
   removeBlacklisted,
 } from "../storage/blacklist.js";
 import {
-  clearSavedRedirect,
-  saveRedirect,
-} from "../storage/redirectConfig.js";
-import {
   clearAutoPing,
   getAutoPing,
   setAutoPing,
@@ -46,7 +42,6 @@ import {
   INCOMING_TOKENS_FILE,
   readIncomingTokensRaw,
 } from "../storage/bulkTokenFile.js";
-import { getRedirectUri } from "../config.js";
 import { exchangeCode } from "../oauth.js";
 import {
   saveUserAuth,
@@ -307,30 +302,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     {
       name: "list_allowed_servers",
       description: "List servers allowed to use this bot (super-owner only)",
-      type: 1,
-    },
-    {
-      name: "redirect_url",
-      description: "Show the OAuth redirect URL to add in the Discord Dev Portal (super-owner only)",
-      type: 1,
-    },
-    {
-      name: "refresh_redirect",
-      description: "Save a new OAuth redirect URL (super-owner only)",
-      type: 1,
-      options: [
-        {
-          name: "url",
-          description:
-            "Full URL ending in /auth/callback. Leave blank to auto-detect from REPLIT_DEV_DOMAIN.",
-          type: O.String,
-          required: false,
-        },
-      ],
-    },
-    {
-      name: "clear_redirect",
-      description: "Clear the saved redirect URL and fall back to defaults (super-owner only)",
       type: 1,
     },
     {
@@ -1046,67 +1017,6 @@ export async function handleSlash(
       if (!(await superOwnerGuard(i))) return;
       await i.reply({
         embeds: [E.allowedGuildsEmbed(MAIN_GUILD_ID)],
-        ephemeral: true,
-      });
-      return;
-    }
-    case "redirect_url": {
-      if (!(await superOwnerGuard(i))) return;
-      await i.reply({ embeds: [E.redirectUrlEmbed()], ephemeral: true });
-      return;
-    }
-    case "refresh_redirect": {
-      if (!(await superOwnerGuard(i))) return;
-      const provided = i.options.getString("url");
-      let url: string | null = provided?.trim() ?? null;
-
-      if (!url) {
-        const dev = process.env.REPLIT_DEV_DOMAIN?.trim();
-        if (dev) {
-          url = `https://${dev}/auth/callback`;
-        }
-      }
-
-      if (!url) {
-        await i.reply({
-          content:
-            "❌ No URL provided and `REPLIT_DEV_DOMAIN` isn't set on this host. " +
-            "Pass the full URL with `url:`.",
-          ephemeral: true,
-        });
-        return;
-      }
-
-      try {
-        const u = new URL(url);
-        if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error("bad protocol");
-      } catch {
-        await i.reply({
-          content: `❌ \`${url}\` is not a valid URL.`,
-          ephemeral: true,
-        });
-        return;
-      }
-
-      saveRedirect(url);
-      const active = getRedirectUri();
-      await i.reply({
-        content:
-          `✅ Saved redirect URL.\n` +
-          `**Active:** \`${active}\`\n\n` +
-          `⚠️ Make sure this exact URL is added in **Discord Developer Portal → OAuth2 → Redirects**.`,
-        ephemeral: true,
-      });
-      return;
-    }
-    case "clear_redirect": {
-      if (!(await superOwnerGuard(i))) return;
-      clearSavedRedirect();
-      const active = getRedirectUri();
-      await i.reply({
-        content:
-          `✅ Cleared saved redirect. Falling back to defaults.\n` +
-          `**Active:** \`${active}\``,
         ephemeral: true,
       });
       return;

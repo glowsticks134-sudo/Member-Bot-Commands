@@ -11,8 +11,8 @@ import {
   HARDCODED_OWNERS,
   MAX_ROLES_PER_GUILD,
   SUPER_OWNER_ID,
-  getPublicDomain,
   getRedirectUri,
+  getPublicDomain,
 } from "../config.js";
 import { readChannelLocks } from "../storage/locks.js";
 import { getGuildOwnerRoles } from "../storage/owners.js";
@@ -625,32 +625,6 @@ export function allowedGuildsEmbed(mainGuildId: string): EmbedBuilder {
     .setDescription(lines.join("\n"))
     .setColor(COLOR.blurple)
     .setTimestamp(now());
-}
-
-export function redirectUrlEmbed(): EmbedBuilder {
-  const redirect = getRedirectUri();
-  const domain = getPublicDomain() ?? "(none detected)";
-  return new EmbedBuilder()
-    .setTitle("🔗 OAuth Redirect URL")
-    .setDescription(
-      "Add the URL below as a **Redirect** in your Discord application " +
-        "(Developer Portal → OAuth2 → Redirects). After saving, the " +
-        "`/get_token` flow will work without publishing the app.",
-    )
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .addFields(
-      { name: "📋 Redirect URI", value: `\`${redirect}\`` },
-      { name: "🌐 Public domain", value: `\`${domain}\``, inline: true },
-      {
-        name: "ℹ️ Super-owner",
-        value: `<@${SUPER_OWNER_ID}>`,
-        inline: true,
-      },
-    )
-    .setFooter({
-      text: "This URL is auto-derived from REPLIT_DEV_DOMAIN — no publish needed.",
-    });
 }
 
 export function noTokensEmbed(): EmbedBuilder {

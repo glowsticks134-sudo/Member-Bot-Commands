@@ -1,7 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
 import "dotenv/config";
-import { getSavedRedirect } from "./storage/redirectConfig.js";
 
 export const PORT = Number(process.env.PORT ?? 3000);
 
@@ -17,49 +16,30 @@ export const HARDCODED_OWNERS = [
   "1486174745333465179",
 ];
 
-// Single super-owner who can run private bot-wide commands
-// (blacklist, enable_server, etc). Override with env var SUPER_OWNER_ID.
 export const SUPER_OWNER_ID =
   process.env.SUPER_OWNER_ID ?? "1411750730380869828";
 
 export const MAX_ROLES_PER_GUILD = 10;
 export const PREFIX = "!";
 
-// Default redirect URL — this Repl's dev URL. It's served without publishing
-// the app and is stable for the lifetime of this Repl. If you ever fork or
-// recreate the Repl, update this string (or set the REDIRECT_URI env var).
-const HARDCODED_REDIRECT =
-  "https://53fcb274-a470-4f68-a4fd-8274154e81f8-00-1alipnha52njx.kirk.replit.dev/auth/callback";
-
 export function getPublicDomain(): string | null {
-  if (process.env.REDIRECT_URI) {
-    try {
-      const u = new URL(process.env.REDIRECT_URI);
-      return `${u.protocol}//${u.host}`;
-    } catch {
-      // fallthrough
-    }
-  }
-  // Replit dev domain — works while developing, no publish required.
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railway) return `https://${railway}`;
   const dev = process.env.REPLIT_DEV_DOMAIN?.trim();
   if (dev) return `https://${dev}`;
   const replit = process.env.REPLIT_DOMAINS?.split(",")[0]?.trim();
   if (replit) return `https://${replit}`;
-  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
-  if (railway) return `https://${railway}`;
   return null;
 }
 
 export function getRedirectUri(): string {
-  const saved = getSavedRedirect();
-  if (saved && saved.length > 0) return saved;
   if (process.env.REDIRECT_URI) return process.env.REDIRECT_URI;
   const domain = getPublicDomain();
   if (domain) return `${domain}/auth/callback`;
-  return HARDCODED_REDIRECT;
+  return `http://localhost:${process.env.PORT ?? 3000}/auth/callback`;
 }
 
-// ─── Data paths (preserve Python layout) ──────────────────────────────────────
+// ─── Data paths ────────────────────────────────────────────────────────────────
 export const DATA_DIR = path.resolve("artifacts/data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 

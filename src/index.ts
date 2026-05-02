@@ -1,12 +1,9 @@
 import "dotenv/config";
 import { startServer } from "./server.js";
 import { startBot } from "./bot/client.js";
-import { getRedirectUri } from "./config.js";
-import { BOT_TOKEN, CLIENT_ID, CLIENT_SECRET } from "./config.js";
+import { BOT_TOKEN, CLIENT_ID, CLIENT_SECRET, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 
-// Keep the process alive unconditionally — prevents accidental "Completed" exits
-// when no other handles are open (e.g. if server bind fails before bot connects).
 const _keepAlive = setInterval(() => {}, 1 << 30);
 
 async function main(): Promise<void> {
@@ -14,11 +11,10 @@ async function main(): Promise<void> {
   botStatus.clientIdConfigured = Boolean(CLIENT_ID);
   botStatus.clientSecretConfigured = Boolean(CLIENT_SECRET);
 
-  console.log(`[oauth] redirect_uri = ${getRedirectUri()}`);
-  console.log("[oauth] add this exact URL in Discord Dev Portal → OAuth2 → Redirects");
   console.log(`[env] DISCORD_BOT_TOKEN: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] DISCORD_CLIENT_ID: ${CLIENT_ID ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] DISCORD_CLIENT_SECRET: ${CLIENT_SECRET ? "✓ set" : "✗ MISSING"}`);
+  console.log(`[oauth] redirect_uri = ${getRedirectUri()}`);
 
   startServer();
   await startBot();
