@@ -33,12 +33,12 @@ name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=3000 npx tsx src/index.ts"
-waitForPort = 3000
+args = "npx tsx src/index.ts"
+waitForPort = 5000
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
@@ -54,3 +54,7 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+
+[[ports]]
+localPort = 5000
+externalPort = 80

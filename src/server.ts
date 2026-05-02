@@ -3,6 +3,7 @@ import { PORT, CLIENT_ID, CLIENT_SECRET, MAIN_GUILD_ID } from "./config.js";
 import { exchangeCode, fetchOAuthUserId, addUserToGuild } from "./oauth.js";
 import { saveUserAuth } from "./storage/tokens.js";
 import { botStatus } from "./botStatus.js";
+import { getLandingHtml } from "./landing.js";
 
 function escapeHtml(s: string): string {
   return s
@@ -260,15 +261,7 @@ ${botStatus.connected ? `<p class="hint">✅ Everything looks good. Bot is onlin
   });
 
   app.get("/", (_req, res) => {
-    res.set("content-type", "text/html; charset=utf-8").send(
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Memberty Bot</title>
-<style>body{font-family:system-ui;background:#0b0d12;color:#f2f3f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}main{max-width:480px;text-align:center}h1{margin:0 0 8px;font-size:24px}p{color:#b9bbbe;line-height:1.5}code{background:#181a20;padding:2px 6px;border-radius:4px}</style>
-</head><body><main>
-<h1>🤖 Memberty Bot</h1>
-<p>Discord bot is running. Use slash commands in Discord.</p>
-<p style="font-size:12px;margin-top:24px">OAuth callback: <code>/auth/callback</code></p>
-</main></body></html>`,
-    );
+    res.set("content-type", "text/html; charset=utf-8").send(getLandingHtml());
   });
 
   app.get("/auth/callback", handleOAuthCallback);
