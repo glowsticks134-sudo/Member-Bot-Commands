@@ -69,3 +69,21 @@ export function saveUserAuth(
 export function findStoredToken(userId: string): AuthUser | undefined {
   return readStoredTokens().find((u) => u.userId === userId);
 }
+
+// Return tokens from stock back to stored_tokens (no duplicates)
+export function returnTokensToStored(users: AuthUser[]): void {
+  if (users.length === 0) return;
+  const existing = readStoredTokens();
+  const existingIds = new Set(existing.map((u) => u.userId));
+  for (const u of users) {
+    if (existingIds.has(u.userId)) {
+      // Update the entry in case the token was refreshed during stock use
+      const idx = existing.findIndex((e) => e.userId === u.userId);
+      if (idx >= 0) existing[idx] = u;
+    } else {
+      existing.push(u);
+      existingIds.add(u.userId);
+    }
+  }
+  writeStoredTokens(existing);
+}

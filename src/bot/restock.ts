@@ -6,6 +6,7 @@ import {
   clearAuthUsers,
   readAuthUsers,
   writeAuthUsers,
+  returnTokensToStored,
   type AuthUser,
 } from "../storage/tokens.js";
 
@@ -62,6 +63,8 @@ export async function doRestock(raw: string): Promise<EmbedBuilder> {
 }
 
 export function clearStock(): void {
+  const current = readAuthUsers();
+  returnTokensToStored(current);
   clearAuthUsers();
 }
 
@@ -139,6 +142,7 @@ export async function doCheckTokens(): Promise<EmbedBuilder> {
   let refreshed = 0;
   const kept: AuthUser[] = [];
 
+  const returnToStored: AuthUser[] = [];
   for (const u of users) {
     const id = await fetchOAuthUserId(u.accessToken);
     if (id) {
@@ -157,10 +161,12 @@ export async function doCheckTokens(): Promise<EmbedBuilder> {
       });
     } else {
       invalid++;
+      returnToStored.push(u); // return invalid tokens to stored instead of deleting
     }
     await new Promise((res) => setTimeout(res, 60));
   }
   writeAuthUsers(kept);
+  if (returnToStored.length > 0) returnTokensToStored(returnToStored);
   return new EmbedBuilder()
     .setTitle("🔍 Token Check Complete")
     .setColor(COLOR.blurple)
@@ -207,6 +213,7 @@ export async function doMassJoin(
   let failed = 0;
   let rateLimited = 0;
   const kept: AuthUser[] = [];
+  const returned: AuthUser[] = [];
 
   for (let i = 0; i < users.length; i++) {
     const u = users[i];
@@ -236,17 +243,18 @@ export async function doMassJoin(
       await new Promise((res) => setTimeout(res, 1500));
     } else {
       failed++;
-      // drop this token
+      returned.push(u); // return failed token to stored instead of deleting
     }
 
     if (onProgress && (i % 5 === 0 || i === users.length - 1)) {
       await onProgress(
-        `⏳ Mass join: ${i + 1}/${users.length} — ✅ ${added} added, 👤 ${inGuild} already in, ❌ ${failed} dropped`,
+        `⏳ Mass join: ${i + 1}/${users.length} — ✅ ${added} added, 👤 ${inGuild} already in, ❌ ${failed} returned to stored`,
       );
     }
     await new Promise((res) => setTimeout(res, 120));
   }
   writeAuthUsers(kept);
+  if (returned.length > 0) returnTokensToStored(returned);
 
   return new EmbedBuilder()
     .setTitle("🚀 Mass Join Complete")
