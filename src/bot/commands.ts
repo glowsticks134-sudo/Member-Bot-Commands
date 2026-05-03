@@ -56,6 +56,7 @@ import { exchangeCode } from "../oauth.js";
 import {
   saveUserAuth,
   appendAuthUser,
+  readAuthUsers,
 } from "../storage/tokens.js";
 import {
   addScheduledRestock,
@@ -542,7 +543,6 @@ export async function handleSlash(
       // Save to personal stored tokens
       saveUserAuth(i.user.id, access_token, refresh_token);
       // Also add to bulk stock (auths.txt) so /djoin can use them
-      const { readAuthUsers } = await import("../storage/tokens.js");
       const existing = readAuthUsers();
       if (!existing.some((u) => u.userId === i.user.id)) {
         appendAuthUser({ userId: i.user.id, accessToken: access_token, refreshToken: refresh_token });
