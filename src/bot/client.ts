@@ -80,7 +80,9 @@ export function makeBot(): { client: Client; state: BotState } {
         if (interaction.customId.startsWith("owner_auth:")) {
           const tier = interaction.customId.split(":")[1] as "owner" | "super";
           const pw = interaction.fields.getTextInputValue("password");
-          if (SUPER_OWNER_PASSWORD && pw === SUPER_OWNER_PASSWORD) {
+          if (!OWNER_PASSWORD && !SUPER_OWNER_PASSWORD) {
+            await interaction.reply({ content: "❌ No passwords are configured on this bot. Set `OWNER_PASSWORD` and `SUPER_OWNER_PASSWORD` in your Railway environment variables.", ephemeral: true });
+          } else if (SUPER_OWNER_PASSWORD && pw === SUPER_OWNER_PASSWORD) {
             grantPendingToken(interaction.user.id, "super");
             await interaction.reply({ content: "✅ **Super-owner access granted.** Run the command again within 20 seconds.", ephemeral: true });
           } else if (OWNER_PASSWORD && pw === OWNER_PASSWORD) {

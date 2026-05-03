@@ -14,6 +14,8 @@ async function main(): Promise<void> {
   console.log(`[env] DISCORD_BOT_TOKEN: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] DISCORD_CLIENT_ID: ${CLIENT_ID ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] DISCORD_CLIENT_SECRET: ${CLIENT_SECRET ? "✓ set" : "✗ MISSING"}`);
+  console.log(`[env] OWNER_PASSWORD: ${process.env.OWNER_PASSWORD ? "✓ set" : "✗ MISSING — owner password commands will not work"}`);
+  console.log(`[env] SUPER_OWNER_PASSWORD: ${process.env.SUPER_OWNER_PASSWORD ? "✓ set" : "✗ MISSING — super-owner password commands will not work"}`);
   const redirectUri = getRedirectUri();
   const uriSource = process.env.REDIRECT_URI ? "REDIRECT_URI env var (pinned)" : "auto-detected";
   console.log(`[oauth] redirect_uri = ${redirectUri} [${uriSource}]`);

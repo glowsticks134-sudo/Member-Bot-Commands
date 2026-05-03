@@ -700,7 +700,7 @@ export async function handleSlash(
     case "restart":
       if (!(await ownerGuard(i))) return;
       await i.reply({ content: "🔄 Restarting…", ephemeral: true });
-      setTimeout(() => process.exit(0), 500);
+      setTimeout(() => process.exit(1), 500);
       return;
     case "dashboard":
       if (!(await ownerGuard(i))) return;
