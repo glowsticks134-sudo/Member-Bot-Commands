@@ -5,7 +5,8 @@ import {
   Events,
 } from "discord.js";
 
-import { BOT_TOKEN } from "../config.js";
+import { BOT_TOKEN, OWNER_PASSWORD, SUPER_OWNER_PASSWORD } from "../config.js";
+import { grantOwnerSession, grantSuperOwnerSession } from "./session.js";
 import { botStatus } from "../botStatus.js";
 import { dbInit } from "../storage/subscribers.js";
 import { handleSlash, registerCommandsForGuild } from "./commands.js";
@@ -75,6 +76,21 @@ export function makeBot(): { client: Client; state: BotState } {
     try {
       if (interaction.isChatInputCommand()) {
         await handleSlash(interaction, state, client);
+      } else if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith("owner_auth:")) {
+          const tier = interaction.customId.split(":")[1] as "owner" | "super";
+          const pw = interaction.fields.getTextInputValue("password");
+          if (SUPER_OWNER_PASSWORD && pw === SUPER_OWNER_PASSWORD) {
+            grantSuperOwnerSession(interaction.user.id);
+            await interaction.reply({ content: "✅ **Super-owner access granted** for this session. Run the command again.", ephemeral: true });
+          } else if (OWNER_PASSWORD && pw === OWNER_PASSWORD) {
+            grantOwnerSession(interaction.user.id);
+            await interaction.reply({ content: "✅ **Owner access granted** for this session. Run the command again.", ephemeral: true });
+          } else {
+            await interaction.reply({ content: "❌ Incorrect password.", ephemeral: true });
+          }
+          void tier;
+        }
       } else if (interaction.isButton()) {
         if (interaction.customId.startsWith("cp:")) {
           await handleControlPanelButton(interaction, state);

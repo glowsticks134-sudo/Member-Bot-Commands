@@ -1,7 +1,11 @@
 import {
+  ActionRowBuilder,
   ApplicationCommandOptionType,
   ChannelType,
+  ModalBuilder,
   PermissionFlagsBits,
+  TextInputBuilder,
+  TextInputStyle,
   type ChatInputCommandInteraction,
   type RESTPostAPIApplicationCommandsJSONBody,
   type Attachment,
@@ -410,6 +414,19 @@ export async function registerCommandsForGuild(guildId: string): Promise<void> {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function buildPasswordModal(tier: "owner" | "super"): ModalBuilder {
+  const input = new TextInputBuilder()
+    .setCustomId("password")
+    .setLabel(tier === "super" ? "Super-owner password" : "Owner password")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("Enter password…")
+    .setRequired(true);
+  return new ModalBuilder()
+    .setCustomId(`owner_auth:${tier}`)
+    .setTitle("🔒 Owner Authentication")
+    .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+}
+
 async function ownerGuard(
   i: ChatInputCommandInteraction,
 ): Promise<boolean> {
@@ -419,7 +436,7 @@ async function ownerGuard(
   }
   const member = await i.guild.members.fetch(i.user.id).catch(() => null);
   if (!isAuthorizedMember(i.guild.ownerId, i.guild.id, i.user.id, member)) {
-    await i.reply({ embeds: [E.denyEmbed()], ephemeral: true });
+    await i.showModal(buildPasswordModal("owner"));
     return false;
   }
   return true;
@@ -459,7 +476,7 @@ async function superOwnerGuard(
   i: ChatInputCommandInteraction,
 ): Promise<boolean> {
   if (i.user.id !== SUPER_OWNER_ID && !hasSuperOwnerSession(i.user.id)) {
-    await i.reply({ embeds: [E.denySuperOwnerEmbed()], ephemeral: true });
+    await i.showModal(buildPasswordModal("super"));
     return false;
   }
   return true;

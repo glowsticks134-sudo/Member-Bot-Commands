@@ -19,8 +19,9 @@ export const HARDCODED_OWNERS = [
 export const SUPER_OWNER_ID =
   process.env.SUPER_OWNER_ID ?? "1411750730380869828";
 
-export const OWNER_PASSWORD = process.env.OWNER_PASSWORD ?? "";
-export const SUPER_OWNER_PASSWORD = process.env.SUPER_OWNER_PASSWORD ?? "";
+// ─── Owner passwords — change these directly here ─────────────────────────────
+export const OWNER_PASSWORD = "memberty_owner";
+export const SUPER_OWNER_PASSWORD = "memberty_super";
 
 export const MAX_ROLES_PER_GUILD = 10;
 export const PREFIX = "!";
