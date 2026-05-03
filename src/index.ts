@@ -19,6 +19,14 @@ async function main(): Promise<void> {
   const redirectUri = getRedirectUri();
   const uriSource = process.env.REDIRECT_URI ? "REDIRECT_URI env var (pinned)" : "auto-detected";
   console.log(`[oauth] redirect_uri = ${redirectUri} [${uriSource}]`);
+  if (
+    process.env.RAILWAY_PUBLIC_DOMAIN &&
+    process.env.REDIRECT_URI &&
+    (process.env.REDIRECT_URI.includes("replit.dev") || process.env.REDIRECT_URI.includes("repl.co"))
+  ) {
+    console.warn("[oauth] ⚠️  WARNING: Running on Railway but REDIRECT_URI points to a Replit domain.");
+    console.warn("[oauth] ⚠️  DELETE REDIRECT_URI from Railway variables so the bot uses its own Railway URL.");
+  }
 
   startServer();
   await startBot();
