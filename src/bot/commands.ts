@@ -124,7 +124,20 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
         { name: "server_id", description: "Target server ID", type: O.String, required: true },
       ],
     },
-    { name: "restock", description: "Push all authenticated users into bulk stock (owners only)", type: 1 },
+    {
+      name: "restock",
+      description: "Push authenticated users from stored tokens into bulk stock (owners only)",
+      type: 1,
+      options: [
+        {
+          name: "count",
+          description: "How many stored tokens to move into stock (default: all)",
+          type: O.Integer,
+          required: false,
+          min_value: 1,
+        },
+      ],
+    },
     { name: "deploy", description: "Trigger a Railway redeploy (owners only)", type: 1 },
     { name: "clear_stock", description: "Remove all stored tokens (owners only)", type: 1 },
     { name: "cleanup_servers", description: "Leave all other servers (owners only)", type: 1 },
@@ -556,7 +569,8 @@ export async function handleSlash(
     case "restock": {
       if (!(await ownerGuard(i))) return;
       await i.deferReply({ ephemeral: true });
-      const e = await doRestockFromStored();
+      const count = i.options.getInteger("count") ?? undefined;
+      const e = await doRestockFromStored(count);
       await i.followUp({ embeds: [e], ephemeral: true });
       return;
     }

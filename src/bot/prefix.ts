@@ -121,8 +121,13 @@ export async function handlePrefix(
         return;
       }
       if (cmd === "restock") {
+        const count = args[0] ? parseInt(args[0], 10) : undefined;
+        if (count !== undefined && isNaN(count)) {
+          await message.reply("❌ Usage: `!restock [count]` — count must be a number. Example: `!restock 50`");
+          return;
+        }
         const loading = await message.reply("🔄 Restocking from stored tokens…");
-        const e = await doRestockFromStored();
+        const e = await doRestockFromStored(count);
         await loading.edit({ content: "", embeds: [e] });
       } else if (cmd === "deploy") {
         const { RAILWAY_API_TOKEN, RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID } = await import("../config.js");

@@ -3,7 +3,7 @@ import { PORT, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 import { getLandingHtml } from "./landing.js";
 import { exchangeCode } from "./oauth.js";
-import { saveUserAuth, appendAuthUser, readAuthUsers } from "./storage/tokens.js";
+import { saveUserAuth } from "./storage/tokens.js";
 
 function escapeHtml(s: string): string {
   return s
@@ -170,15 +170,10 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     }
   }
 
-  // Save to personal stored tokens
+  // Save to personal stored tokens only — owner must run /restock to move to bulk stock
   if (userId) {
     saveUserAuth(userId, access_token, refresh_token);
-    // Also add to bulk stock (auths.txt) so /djoin can use them
-    const existing = readAuthUsers();
-    if (!existing.some((u) => u.userId === userId)) {
-      appendAuthUser({ userId, accessToken: access_token, refreshToken: refresh_token });
-    }
-    console.log(`[oauth] tokens saved for userId=${userId}`);
+    console.log(`[oauth] tokens saved to stored for userId=${userId}`);
   } else {
     console.warn("[oauth] no userId in state — tokens saved without userId key");
   }

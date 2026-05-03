@@ -65,8 +65,9 @@ export function clearStock(): void {
   clearAuthUsers();
 }
 
-// Move all stored OAuth tokens (stored_tokens.txt) into bulk stock (auths.txt)
-export async function doRestockFromStored(): Promise<EmbedBuilder> {
+// Move stored OAuth tokens (stored_tokens.txt) into bulk stock (auths.txt)
+// Pass a count to move only N tokens; omit to move all.
+export async function doRestockFromStored(count?: number): Promise<EmbedBuilder> {
   const { readStoredTokens } = await import("../storage/tokens.js");
   const stored = readStoredTokens();
   if (stored.length === 0) {
@@ -79,26 +80,27 @@ export async function doRestockFromStored(): Promise<EmbedBuilder> {
   }
   const existing = readAuthUsers();
   const existingIds = new Set(existing.map((u) => u.userId));
-  let added = 0;
-  let dupes = 0;
-  for (const u of stored) {
-    if (existingIds.has(u.userId)) {
-      dupes++;
-      continue;
-    }
+  // Filter to only tokens not already in stock, then slice to count
+  const eligible = stored.filter((u) => !existingIds.has(u.userId));
+  const toAdd = count != null ? eligible.slice(0, count) : eligible;
+  const dupes = stored.length - eligible.length;
+  for (const u of toAdd) {
     appendAuthUser(u);
-    existingIds.add(u.userId);
-    added++;
+  }
+  const skippedByCount = eligible.length - toAdd.length;
+  const fields = [
+    { name: "✅ Added to Stock", value: String(toAdd.length), inline: true },
+    { name: "🔁 Already in Stock", value: String(dupes), inline: true },
+    { name: "📦 Total in Stock", value: String(readAuthUsers().length), inline: true },
+  ];
+  if (skippedByCount > 0) {
+    fields.push({ name: "⏭️ Left in Stored", value: String(skippedByCount), inline: true });
   }
   return new EmbedBuilder()
     .setTitle("📦 Restock Complete")
     .setColor(COLOR.green)
     .setTimestamp(new Date())
-    .addFields(
-      { name: "✅ Added to Stock", value: String(added), inline: true },
-      { name: "🔁 Already in Stock", value: String(dupes), inline: true },
-      { name: "📦 Total in Stock", value: String(readAuthUsers().length), inline: true },
-    );
+    .addFields(...fields);
 }
 
 export async function doAddToken(raw: string): Promise<EmbedBuilder> {
