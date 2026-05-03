@@ -26,11 +26,8 @@ import {
   SUPER_OWNER_PASSWORD,
 } from "../config.js";
 import {
-  grantOwnerSession,
-  grantSuperOwnerSession,
-  hasSuperOwnerSession,
-  hasOwnerSession,
-  revokeSession,
+  consumeOwnerToken,
+  consumeSuperToken,
 } from "./session.js";
 import {
   addAllowedGuild,
@@ -388,16 +385,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       type: 1,
     },
 
-    // ─── Session login / logout ───────────────────────────────────────────
-    {
-      name: "login",
-      description: "Unlock owner commands with a password (session only)",
-      type: 1,
-      options: [
-        { name: "password", description: "Owner password", type: O.String, required: true },
-      ],
-    },
-    { name: "logout", description: "End your owner session", type: 1 },
   ];
 }
 
@@ -435,11 +422,14 @@ async function ownerGuard(
     return false;
   }
   const member = await i.guild.members.fetch(i.user.id).catch(() => null);
-  if (!isAuthorizedMember(i.guild.ownerId, i.guild.id, i.user.id, member)) {
-    await i.showModal(buildPasswordModal("owner"));
-    return false;
+  if (isAuthorizedMember(i.guild.ownerId, i.guild.id, i.user.id, member)) {
+    return true;
   }
-  return true;
+  if (consumeOwnerToken(i.user.id)) {
+    return true;
+  }
+  await i.showModal(buildPasswordModal("owner"));
+  return false;
 }
 
 async function realOwnerGuard(
@@ -475,11 +465,10 @@ async function wrongGuildGuard(
 async function superOwnerGuard(
   i: ChatInputCommandInteraction,
 ): Promise<boolean> {
-  if (i.user.id !== SUPER_OWNER_ID && !hasSuperOwnerSession(i.user.id)) {
-    await i.showModal(buildPasswordModal("super"));
-    return false;
-  }
-  return true;
+  if (i.user.id === SUPER_OWNER_ID) return true;
+  if (consumeSuperToken(i.user.id)) return true;
+  await i.showModal(buildPasswordModal("super"));
+  return false;
 }
 
 async function blacklistGuard(
@@ -538,35 +527,6 @@ export async function handleSlash(
       await i.reply({ embeds: [E.getTokenEmbed(i.user.id)], ephemeral: true });
       return;
 
-    case "login": {
-      const pw = i.options.getString("password", true);
-      if (!OWNER_PASSWORD && !SUPER_OWNER_PASSWORD) {
-        await i.reply({ content: "❌ No owner password is configured on this bot.", ephemeral: true });
-        return;
-      }
-      if (SUPER_OWNER_PASSWORD && pw === SUPER_OWNER_PASSWORD) {
-        grantSuperOwnerSession(i.user.id);
-        await i.reply({ content: "✅ **Super-owner access granted** for this session. Use `/logout` when done.", ephemeral: true });
-        return;
-      }
-      if (OWNER_PASSWORD && pw === OWNER_PASSWORD) {
-        grantOwnerSession(i.user.id);
-        await i.reply({ content: "✅ **Owner access granted** for this session. Use `/logout` when done.", ephemeral: true });
-        return;
-      }
-      await i.reply({ content: "❌ Incorrect password.", ephemeral: true });
-      return;
-    }
-
-    case "logout": {
-      const hadSession = hasOwnerSession(i.user.id);
-      revokeSession(i.user.id);
-      await i.reply({
-        content: hadSession ? "✅ Your owner session has been ended." : "ℹ️ You didn't have an active session.",
-        ephemeral: true,
-      });
-      return;
-    }
     case "auth": {
       const code = i.options.getString("code", true);
       await i.deferReply({ ephemeral: true });

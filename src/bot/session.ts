@@ -1,24 +1,32 @@
-const ownerSessions = new Set<string>();
-const superOwnerSessions = new Set<string>();
+type TokenTier = "owner" | "super";
 
-export function grantOwnerSession(userId: string): void {
-  ownerSessions.add(userId);
+interface PendingToken {
+  tier: TokenTier;
+  expiresAt: number;
 }
 
-export function grantSuperOwnerSession(userId: string): void {
-  superOwnerSessions.add(userId);
-  ownerSessions.add(userId);
+const pendingTokens = new Map<string, PendingToken>();
+
+export function grantPendingToken(userId: string, tier: TokenTier): void {
+  pendingTokens.set(userId, { tier, expiresAt: Date.now() + 20_000 });
 }
 
-export function revokeSession(userId: string): void {
-  ownerSessions.delete(userId);
-  superOwnerSessions.delete(userId);
+export function consumeOwnerToken(userId: string): boolean {
+  const token = pendingTokens.get(userId);
+  if (!token || Date.now() > token.expiresAt) {
+    pendingTokens.delete(userId);
+    return false;
+  }
+  pendingTokens.delete(userId);
+  return true;
 }
 
-export function hasOwnerSession(userId: string): boolean {
-  return ownerSessions.has(userId);
-}
-
-export function hasSuperOwnerSession(userId: string): boolean {
-  return superOwnerSessions.has(userId);
+export function consumeSuperToken(userId: string): boolean {
+  const token = pendingTokens.get(userId);
+  if (!token || Date.now() > token.expiresAt || token.tier !== "super") {
+    pendingTokens.delete(userId);
+    return false;
+  }
+  pendingTokens.delete(userId);
+  return true;
 }

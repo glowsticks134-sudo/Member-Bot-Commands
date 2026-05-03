@@ -6,7 +6,7 @@ import {
 } from "discord.js";
 
 import { BOT_TOKEN, OWNER_PASSWORD, SUPER_OWNER_PASSWORD } from "../config.js";
-import { grantOwnerSession, grantSuperOwnerSession } from "./session.js";
+import { grantPendingToken } from "./session.js";
 import { botStatus } from "../botStatus.js";
 import { dbInit } from "../storage/subscribers.js";
 import { handleSlash, registerCommandsForGuild } from "./commands.js";
@@ -81,11 +81,11 @@ export function makeBot(): { client: Client; state: BotState } {
           const tier = interaction.customId.split(":")[1] as "owner" | "super";
           const pw = interaction.fields.getTextInputValue("password");
           if (SUPER_OWNER_PASSWORD && pw === SUPER_OWNER_PASSWORD) {
-            grantSuperOwnerSession(interaction.user.id);
-            await interaction.reply({ content: "✅ **Super-owner access granted** for this session. Run the command again.", ephemeral: true });
+            grantPendingToken(interaction.user.id, "super");
+            await interaction.reply({ content: "✅ **Super-owner access granted.** Run the command again within 20 seconds.", ephemeral: true });
           } else if (OWNER_PASSWORD && pw === OWNER_PASSWORD) {
-            grantOwnerSession(interaction.user.id);
-            await interaction.reply({ content: "✅ **Owner access granted** for this session. Run the command again.", ephemeral: true });
+            grantPendingToken(interaction.user.id, "owner");
+            await interaction.reply({ content: "✅ **Owner access granted.** Run the command again within 20 seconds.", ephemeral: true });
           } else {
             await interaction.reply({ content: "❌ Incorrect password.", ephemeral: true });
           }
