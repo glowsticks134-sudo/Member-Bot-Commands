@@ -40,7 +40,7 @@ process.on("uncaughtException", (e) => {
 });
 
 process.on("SIGTERM", () => {
-  console.log("[process] received SIGTERM — shutting down");
+  console.log("[process] received SIGTERM — restarting");
   clearInterval(_keepAlive);
-  process.exit(0);
+  process.exit(1);
 });
