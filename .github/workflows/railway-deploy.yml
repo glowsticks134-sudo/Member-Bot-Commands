@@ -1,0 +1,44 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Trigger Railway Redeploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discover service & environment, then redeploy
+        run: |
+          DATA=$(curl -sf -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ me { projects { edges { node { services { edges { node { id name } } } environments { edges { node { id name } } } } } } }"}')
+
+          echo "Railway project data: $DATA"
+
+          SERVICE_ID=$(echo "$DATA" | jq -r '.data.me.projects.edges[0].node.services.edges[0].node.id')
+          ENV_ID=$(echo "$DATA" | jq -r '.data.me.projects.edges[0].node.environments.edges[0].node.id')
+
+          if [ "$SERVICE_ID" = "null" ] || [ -z "$SERVICE_ID" ]; then
+            echo "ERROR: Could not find service ID. Check RAILWAY_TOKEN secret."
+            exit 1
+          fi
+
+          echo "Deploying service=$SERVICE_ID env=$ENV_ID"
+
+          RESULT=$(curl -sf -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { serviceInstanceRedeploy(serviceId: \\\"$SERVICE_ID\\\", environmentId: \\\"$ENV_ID\\\") }\"}")
+
+          echo "Result: $RESULT"
+
+          if echo "$RESULT" | jq -e '.errors' > /dev/null 2>&1; then
+            echo "ERROR: Railway returned errors:"
+            echo "$RESULT" | jq '.errors'
+            exit 1
+          fi
+
+          echo "Redeploy triggered successfully!"
