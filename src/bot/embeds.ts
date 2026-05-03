@@ -71,7 +71,8 @@ export function helpEmbed(): EmbedBuilder {
           "`/setowner_role @role` — Grant owner access by role\n" +
           "`/removeowner_role @role` — Revoke owner role\n" +
           "`/listowner_roles` — List all owner roles\n" +
-          "`/restart` — Restart bot\n" +
+          "`/restart` — Restart bot process\n" +
+          "`/deploy` — Trigger a Railway redeploy (owners only)\n" +
           "`/dashboard` — Get private dashboard link (owners only)",
       },
       {

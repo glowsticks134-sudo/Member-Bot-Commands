@@ -125,6 +125,7 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       ],
     },
     { name: "restock", description: "Push all authenticated users into bulk stock (owners only)", type: 1 },
+    { name: "deploy", description: "Trigger a Railway redeploy (owners only)", type: 1 },
     { name: "clear_stock", description: "Remove all stored tokens (owners only)", type: 1 },
     { name: "cleanup_servers", description: "Leave all other servers (owners only)", type: 1 },
     { name: "control_panel", description: "Open the interactive owner control panel", type: 1 },
@@ -557,6 +558,43 @@ export async function handleSlash(
       await i.deferReply({ ephemeral: true });
       const e = await doRestockFromStored();
       await i.followUp({ embeds: [e], ephemeral: true });
+      return;
+    }
+    case "deploy": {
+      if (!(await ownerGuard(i))) return;
+      const { RAILWAY_DEPLOY_HOOK_URL } = await import("../config.js");
+      if (!RAILWAY_DEPLOY_HOOK_URL) {
+        await i.reply({
+          content:
+            "❌ `RAILWAY_DEPLOY_HOOK_URL` is not set.\n\n" +
+            "**To set it up:**\n" +
+            "1. Open Railway → your service → **Settings** → **Deploy**\n" +
+            "2. Copy the **Deploy Webhook** URL\n" +
+            "3. Add it as `RAILWAY_DEPLOY_HOOK_URL` in Railway → Variables",
+          ephemeral: true,
+        });
+        return;
+      }
+      await i.deferReply({ ephemeral: true });
+      try {
+        const res = await fetch(RAILWAY_DEPLOY_HOOK_URL, { method: "POST" });
+        if (res.ok) {
+          await i.followUp({
+            content: "🚀 **Railway redeploy triggered!**\nThe service will rebuild and restart in ~1–2 minutes.",
+            ephemeral: true,
+          });
+        } else {
+          await i.followUp({
+            content: `❌ Deploy webhook failed: HTTP ${res.status}. Check the URL in Railway Variables.`,
+            ephemeral: true,
+          });
+        }
+      } catch (err) {
+        await i.followUp({
+          content: `❌ Could not reach Railway: ${(err as Error).message}`,
+          ephemeral: true,
+        });
+      }
       return;
     }
     case "djoin": {

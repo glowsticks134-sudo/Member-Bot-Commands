@@ -20,7 +20,7 @@ import { subscribeComponents } from "./subscribeView.js";
 import type { BotState } from "./client.js";
 
 const OWNER_PREFIX_CMDS = new Set([
-  "restock", "clear_stock", "djoin", "cleanup_servers", "control_panel",
+  "restock", "clear_stock", "djoin", "deploy", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
   "setowner_role", "removeowner_role", "restart", "dashboard",
   "schedule_restock", "list_schedules", "cancel_schedule",
@@ -124,6 +124,26 @@ export async function handlePrefix(
         const loading = await message.reply("🔄 Restocking from stored tokens…");
         const e = await doRestockFromStored();
         await loading.edit({ content: "", embeds: [e] });
+      } else if (cmd === "deploy") {
+        const { RAILWAY_DEPLOY_HOOK_URL } = await import("../config.js");
+        if (!RAILWAY_DEPLOY_HOOK_URL) {
+          await message.reply(
+            "❌ `RAILWAY_DEPLOY_HOOK_URL` is not set.\n\n" +
+            "Go to Railway → your service → **Settings** → **Deploy** → copy the **Deploy Webhook** URL, then add it as `RAILWAY_DEPLOY_HOOK_URL` in Railway Variables.",
+          );
+          return;
+        }
+        const loading = await message.reply("⏳ Triggering Railway redeploy…");
+        try {
+          const res = await fetch(RAILWAY_DEPLOY_HOOK_URL, { method: "POST" });
+          if (res.ok) {
+            await loading.edit("🚀 **Railway redeploy triggered!** The service will rebuild and restart in ~1–2 minutes.");
+          } else {
+            await loading.edit(`❌ Deploy webhook failed: HTTP ${res.status}.`);
+          }
+        } catch (err) {
+          await loading.edit(`❌ Could not reach Railway: ${(err as Error).message}`);
+        }
       } else if (cmd === "clear_stock") {
         clearStock();
         await message.reply("🧹 Stock cleared.");

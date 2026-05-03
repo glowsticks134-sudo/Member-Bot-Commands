@@ -22,6 +22,11 @@ export const SUPER_OWNER_ID =
 export const OWNER_PASSWORD = process.env.OWNER_PASSWORD ?? "";
 export const SUPER_OWNER_PASSWORD = process.env.SUPER_OWNER_PASSWORD ?? "";
 
+// Railway deploy webhook — set RAILWAY_DEPLOY_HOOK_URL in Railway variables
+// to enable the /deploy bot command. Get it from:
+// Railway dashboard → your service → Settings → Deploy → Deploy Webhook
+export const RAILWAY_DEPLOY_HOOK_URL = process.env.RAILWAY_DEPLOY_HOOK_URL ?? "";
+
 export const MAX_ROLES_PER_GUILD = 10;
 export const PREFIX = "!";
 
