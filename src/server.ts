@@ -139,17 +139,24 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
   res.send(
     renderPage({
       success: true,
-      title: "Almost There!",
-      body: `<p>You've authorized with Discord. Now complete your setup in the server:</p>
-        <div class="field-wrap">
-          <span class="lbl">Your Code — copy this</span>
+      title: "Step 2 of 2 — Copy Your Code",
+      body: `
+        <p style="font-size:15px;font-weight:600;color:#fff;margin-bottom:18px;">
+          ✅ Discord authorized. Now copy the code below and paste it in Discord.
+        </p>
+        <div style="background:#0b0d12;border:2px solid #5865f2;border-radius:10px;padding:16px;margin-bottom:16px;text-align:left;">
+          <div style="font-size:11px;color:#8ea1e1;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-weight:700;">📋 Your Code (tap to copy)</div>
           <div class="row">
-            <input class="field" id="code-field" value="${escapeHtml(code)}" readonly>
-            <button class="copy" data-target="code-field">Copy</button>
+            <input class="field" id="code-field" value="${escapeHtml(code)}" readonly style="font-size:13px;color:#fbbf24;background:#000;border-color:#5865f2;">
+            <button class="copy" data-target="code-field" style="background:#5865f2;min-width:72px;">Copy</button>
           </div>
         </div>
-        <p class="hint">Head back to Discord and run <code>/auth code:YOUR-CODE</code> in the authentication channel to finish.</p>
-        <p class="hint">⏱️ This code expires in <strong>10 minutes</strong> — don't wait too long!</p>`,
+        <p style="background:#1a1c26;border-radius:8px;padding:12px;font-size:13px;color:#d4d7dc;text-align:left;margin-bottom:10px;">
+          👉 Go back to Discord and run:<br>
+          <code style="color:#fbbf24;font-size:14px;font-weight:700;">/auth code:PASTE-YOUR-CODE-HERE</code><br>
+          in the authentication channel.
+        </p>
+        <p class="hint" style="color:#ed4245;font-weight:600;">⏱️ Code expires in 10 minutes — don't close this tab until you've run the command!</p>`,
     }),
   );
 }
