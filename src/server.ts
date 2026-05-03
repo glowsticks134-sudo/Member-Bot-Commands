@@ -2,6 +2,8 @@ import express, { type Request, type Response } from "express";
 import { PORT, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 import { getLandingHtml } from "./landing.js";
+import { exchangeCode } from "./oauth.js";
+import { saveUserAuth, appendAuthUser, readAuthUsers } from "./storage/tokens.js";
 
 function escapeHtml(s: string): string {
   return s
@@ -134,33 +136,73 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // Show the code to the user — they complete auth by running /auth code:CODE in Discord
   console.log(`[oauth] callback received code for state=${state}`);
 
-  // Also DM the user their code via Discord REST API (state = userId)
+  // Exchange the code for tokens RIGHT HERE on the server — no /auth step needed
+  const tokenRes = await exchangeCode(code);
+  if (!tokenRes.ok) {
+    console.error(`[oauth] token exchange failed: ${tokenRes.error}`);
+    res.send(
+      renderPage({
+        success: false,
+        title: "Authorization Failed",
+        body: `<p>Could not exchange your code for a token.</p><p><code>${escapeHtml(tokenRes.error)}</code></p><p class="hint">Run <code>/get_token</code> in Discord again to get a fresh link.</p>`,
+      }),
+    );
+    return;
+  }
+
+  const { access_token, refresh_token } = tokenRes.data;
+
+  // Determine the userId — use state (Discord userId) if provided, else fetch from API
+  let userId = state || "";
+  if (!userId) {
+    try {
+      const meRes = await fetch("https://discord.com/api/v10/users/@me", {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      if (meRes.ok) {
+        const me = await meRes.json() as { id: string };
+        userId = me.id;
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
+  // Save to personal stored tokens
+  if (userId) {
+    saveUserAuth(userId, access_token, refresh_token);
+    // Also add to bulk stock (auths.txt) so /djoin can use them
+    const existing = readAuthUsers();
+    if (!existing.some((u) => u.userId === userId)) {
+      appendAuthUser({ userId, accessToken: access_token, refreshToken: refresh_token });
+    }
+    console.log(`[oauth] tokens saved for userId=${userId}`);
+  } else {
+    console.warn("[oauth] no userId in state — tokens saved without userId key");
+  }
+
+  // DM the user to confirm via Discord REST API
   const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (botToken && state) {
+  if (botToken && userId) {
     (async () => {
       try {
         const dmRes = await fetch("https://discord.com/api/v10/users/@me/channels", {
           method: "POST",
-          headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ recipient_id: state }),
+          headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ recipient_id: userId }),
         });
         if (dmRes.ok) {
           const dm = await dmRes.json() as { id: string };
           await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
             method: "POST",
-            headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              content: `🔐 **Your authorization code is ready!**\n\n` +
-                `\`\`\`\n${code}\n\`\`\`\n` +
-                `Run this command in the auth channel:\n` +
-                `\`/auth code:${code}\`\n\n` +
-                `⏱️ Code expires in **10 minutes** — run the command now!`,
+              content: `✅ **You've been successfully authenticated!**\n\nYour token has been saved automatically — no extra steps needed.\nYou can now be joined to servers using \`/djoin\`.`,
             }),
           });
-          console.log(`[oauth] DM sent to userId=${state}`);
+          console.log(`[oauth] DM sent to userId=${userId}`);
         }
       } catch (e) {
         console.error("[oauth] DM failed:", e);
@@ -171,24 +213,16 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
   res.send(
     renderPage({
       success: true,
-      title: "Step 2 of 2 — Copy Your Code",
+      title: "✅ You're Authenticated!",
       body: `
         <p style="font-size:15px;font-weight:600;color:#fff;margin-bottom:18px;">
-          ✅ Discord authorized. Now copy the code below and paste it in Discord.
+          Your token has been saved automatically.
         </p>
-        <div style="background:#0b0d12;border:2px solid #5865f2;border-radius:10px;padding:16px;margin-bottom:16px;text-align:left;">
-          <div style="font-size:11px;color:#8ea1e1;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-weight:700;">📋 Your Code (tap to copy)</div>
-          <div class="row">
-            <input class="field" id="code-field" value="${escapeHtml(code)}" readonly style="font-size:13px;color:#fbbf24;background:#000;border-color:#5865f2;">
-            <button class="copy" data-target="code-field" style="background:#5865f2;min-width:72px;">Copy</button>
-          </div>
-        </div>
-        <p style="background:#1a1c26;border-radius:8px;padding:12px;font-size:13px;color:#d4d7dc;text-align:left;margin-bottom:10px;">
-          👉 Go back to Discord and run:<br>
-          <code style="color:#fbbf24;font-size:14px;font-weight:700;">/auth code:PASTE-YOUR-CODE-HERE</code><br>
-          in the authentication channel.
+        <p style="color:#b9bbbe;font-size:14px;line-height:1.6;margin-bottom:16px;">
+          You don't need to do anything else — you'll receive a Discord DM confirming it worked.
+          You can now close this tab.
         </p>
-        <p class="hint" style="color:#ed4245;font-weight:600;">⏱️ Code expires in 10 minutes — don't close this tab until you've run the command!</p>`,
+        <p class="hint">You can now be joined to servers using <code>/djoin</code>.</p>`,
     }),
   );
 }

@@ -129,14 +129,10 @@ export function getTokenEmbed(userId: string): EmbedBuilder {
   const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
   return new EmbedBuilder()
     .setTitle("🔐 Authentication Required")
-    .setDescription("Click the link below to authorize your account.")
+    .setDescription("Click the link below to authorize your account. It only takes 2 steps!")
     .setColor(COLOR.blurple)
     .setTimestamp(now())
     .addFields(
-      {
-        name: "🚨 Important",
-        value: "Codes expire in **10 minutes** — act fast!",
-      },
       {
         name: "🔗 Auth Link",
         value: `[👉 Click Here to Authenticate 👈](${url})`,
@@ -146,9 +142,8 @@ export function getTokenEmbed(userId: string): EmbedBuilder {
         value:
           "1. Click the link above\n" +
           "2. Click **Authorize** on Discord's page\n" +
-          "3. **Copy the code** shown on the page\n" +
-          "4. Run `/auth code:YOUR-CODE` in the auth channel\n" +
-          "5. Close the browser tab — you're done!",
+          "3. Your token is saved automatically — you'll get a DM confirming it!\n" +
+          "4. Close the browser tab — you're done!",
       },
     );
 }
