@@ -1,6 +1,7 @@
 import type { GuildMember } from "discord.js";
 import { HARDCODED_OWNERS } from "../config.js";
 import { getGuildOwnerRoles } from "../storage/owners.js";
+import { hasOwnerSession } from "./session.js";
 
 export function isAuthorizedMember(
   guildOwnerId: string,
@@ -10,6 +11,7 @@ export function isAuthorizedMember(
 ): boolean {
   if (userId === guildOwnerId) return true;
   if (HARDCODED_OWNERS.includes(userId)) return true;
+  if (hasOwnerSession(userId)) return true;
   if (!member) return false;
   const ownerRoles = getGuildOwnerRoles(guildId);
   if (ownerRoles.length === 0) return false;

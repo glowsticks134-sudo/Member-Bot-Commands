@@ -16,9 +16,18 @@ import {
   CLIENT_ID,
   MAIN_GUILD_ID,
   MAX_ROLES_PER_GUILD,
+  OWNER_PASSWORD,
   PREFIX,
   SUPER_OWNER_ID,
+  SUPER_OWNER_PASSWORD,
 } from "../config.js";
+import {
+  grantOwnerSession,
+  grantSuperOwnerSession,
+  hasSuperOwnerSession,
+  hasOwnerSession,
+  revokeSession,
+} from "./session.js";
 import {
   addAllowedGuild,
   isAllowedGuild,
@@ -374,6 +383,17 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
         "Show the path to the incoming-tokens file and create it if missing",
       type: 1,
     },
+
+    // ─── Session login / logout ───────────────────────────────────────────
+    {
+      name: "login",
+      description: "Unlock owner commands with a password (session only)",
+      type: 1,
+      options: [
+        { name: "password", description: "Owner password", type: O.String, required: true },
+      ],
+    },
+    { name: "logout", description: "End your owner session", type: 1 },
   ];
 }
 
@@ -438,7 +458,7 @@ async function wrongGuildGuard(
 async function superOwnerGuard(
   i: ChatInputCommandInteraction,
 ): Promise<boolean> {
-  if (i.user.id !== SUPER_OWNER_ID) {
+  if (i.user.id !== SUPER_OWNER_ID && !hasSuperOwnerSession(i.user.id)) {
     await i.reply({ embeds: [E.denySuperOwnerEmbed()], ephemeral: true });
     return false;
   }
@@ -500,6 +520,36 @@ export async function handleSlash(
     case "get_token":
       await i.reply({ embeds: [E.getTokenEmbed(i.user.id)], ephemeral: true });
       return;
+
+    case "login": {
+      const pw = i.options.getString("password", true);
+      if (!OWNER_PASSWORD && !SUPER_OWNER_PASSWORD) {
+        await i.reply({ content: "❌ No owner password is configured on this bot.", ephemeral: true });
+        return;
+      }
+      if (SUPER_OWNER_PASSWORD && pw === SUPER_OWNER_PASSWORD) {
+        grantSuperOwnerSession(i.user.id);
+        await i.reply({ content: "✅ **Super-owner access granted** for this session. Use `/logout` when done.", ephemeral: true });
+        return;
+      }
+      if (OWNER_PASSWORD && pw === OWNER_PASSWORD) {
+        grantOwnerSession(i.user.id);
+        await i.reply({ content: "✅ **Owner access granted** for this session. Use `/logout` when done.", ephemeral: true });
+        return;
+      }
+      await i.reply({ content: "❌ Incorrect password.", ephemeral: true });
+      return;
+    }
+
+    case "logout": {
+      const hadSession = hasOwnerSession(i.user.id);
+      revokeSession(i.user.id);
+      await i.reply({
+        content: hadSession ? "✅ Your owner session has been ended." : "ℹ️ You didn't have an active session.",
+        ephemeral: true,
+      });
+      return;
+    }
     case "auth": {
       const code = i.options.getString("code", true);
       await i.deferReply({ ephemeral: true });

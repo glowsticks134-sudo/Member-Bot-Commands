@@ -19,6 +19,9 @@ export const HARDCODED_OWNERS = [
 export const SUPER_OWNER_ID =
   process.env.SUPER_OWNER_ID ?? "1411750730380869828";
 
+export const OWNER_PASSWORD = process.env.OWNER_PASSWORD ?? "";
+export const SUPER_OWNER_PASSWORD = process.env.SUPER_OWNER_PASSWORD ?? "";
+
 export const MAX_ROLES_PER_GUILD = 10;
 export const PREFIX = "!";
 
