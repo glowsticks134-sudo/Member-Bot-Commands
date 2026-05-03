@@ -1,7 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { PORT, CLIENT_ID, CLIENT_SECRET, MAIN_GUILD_ID, getRedirectUri } from "./config.js";
-import { exchangeCode, fetchOAuthUserId, addUserToGuild } from "./oauth.js";
-import { saveUserAuth } from "./storage/tokens.js";
+import { PORT, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 import { getLandingHtml } from "./landing.js";
 
@@ -136,71 +134,22 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // If OAuth credentials aren't configured, bail out clearly
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    console.error("[oauth] callback hit but CLIENT_ID/CLIENT_SECRET not set");
-    res.send(
-      renderPage({
-        success: false,
-        title: "Bot Not Configured",
-        body: `<p>The bot's OAuth credentials are not set on this server.</p>
-          <p class="hint">Set <code>DISCORD_CLIENT_ID</code> and <code>DISCORD_CLIENT_SECRET</code> in your Railway environment variables, then redeploy.</p>`,
-      }),
-    );
-    return;
-  }
-
-  const exchanged = await exchangeCode(code);
-  if (!exchanged.ok) {
-    console.error("[oauth] exchange failed:", exchanged.error);
-    res.send(
-      renderPage({
-        success: false,
-        title: "Token Exchange Failed",
-        body: `<p>Discord rejected the authorization code.</p>
-          <p class="hint">Most likely cause: the redirect URI registered in Discord doesn't exactly match <code>${escapeHtml(getRedirectUri())}</code>. Copy that URL and make sure it's listed in your Discord application's OAuth2 redirect list, then try again.</p>
-          <p class="hint">Error detail: <code>${escapeHtml(exchanged.error)}</code></p>`,
-      }),
-    );
-    return;
-  }
-
-  const { access_token, refresh_token } = exchanged.data;
-  const userId = (await fetchOAuthUserId(access_token)) ?? state;
-  if (!userId) {
-    res.send(
-      renderPage({
-        success: false,
-        title: "Couldn't Identify User",
-        body: `<p>We exchanged the code but couldn't read your Discord user ID.</p>`,
-      }),
-    );
-    return;
-  }
-
-  try {
-    saveUserAuth(userId, access_token, refresh_token);
-  } catch (e) {
-    console.error("[oauth] saveUserAuth failed:", e);
-    res.send(
-      renderPage({
-        success: false,
-        title: "Couldn't Save Token",
-        body: `<p>An internal error occurred while saving your token. Please try again.</p>`,
-      }),
-    );
-    return;
-  }
-
-  // Attempt to auto-join the user to the main guild
-  const joinResult = await addUserToGuild(userId, access_token, MAIN_GUILD_ID);
-  console.log(`[oauth] user ${userId} join result: ${joinResult}`);
-
+  // Show the code to the user — they complete auth by running /auth code:CODE in Discord
+  console.log(`[oauth] callback received code for state=${state}`);
   res.send(
     renderPage({
       success: true,
-      title: "You're Authenticated!",
-      body: `<p>Your account has been linked. You can close this tab and return to Discord.</p>`,
+      title: "Almost There!",
+      body: `<p>You've authorized with Discord. Now complete your setup in the server:</p>
+        <div class="field-wrap">
+          <span class="lbl">Your Code — copy this</span>
+          <div class="row">
+            <input class="field" id="code-field" value="${escapeHtml(code)}" readonly>
+            <button class="copy" data-target="code-field">Copy</button>
+          </div>
+        </div>
+        <p class="hint">Head back to Discord and run <code>/auth code:YOUR-CODE</code> in the authentication channel to finish.</p>
+        <p class="hint">⏱️ This code expires in <strong>10 minutes</strong> — don't wait too long!</p>`,
     }),
   );
 }

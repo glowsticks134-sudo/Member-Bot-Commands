@@ -146,8 +146,9 @@ export function getTokenEmbed(userId: string): EmbedBuilder {
         value:
           "1. Click the link above\n" +
           "2. Click **Authorize** on Discord's page\n" +
-          "3. You'll be redirected and see **\"You're Authenticated!\"** — you're done!\n" +
-          "4. Close the browser tab and return to Discord",
+          "3. **Copy the code** shown on the page\n" +
+          "4. Run `/auth code:YOUR-CODE` in the auth channel\n" +
+          "5. Close the browser tab — you're done!",
       },
     );
 }
