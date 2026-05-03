@@ -532,15 +532,28 @@ export async function handleSlash(
       await i.deferReply({ ephemeral: true });
       const res = await exchangeCode(code.trim());
       if (!res.ok) {
-        await i.followUp({ content: `❌ Auth failed: ${res.error}`, ephemeral: true });
+        await i.followUp({
+          content: `❌ Auth failed: ${res.error}\n\n**Common causes:**\n• Code expired (they last 10 minutes — get a fresh one with \`/get_token\`)\n• Code already used (each code works once only)\n• Redirect URI mismatch in bot config`,
+          ephemeral: true,
+        });
         return;
       }
-      saveUserAuth(i.user.id, res.data.access_token, res.data.refresh_token);
+      const { access_token, refresh_token } = res.data;
+      // Save to personal stored tokens
+      saveUserAuth(i.user.id, access_token, refresh_token);
+      // Also add to bulk stock (auths.txt) so /djoin can use them
+      const { readAuthUsers } = await import("../storage/tokens.js");
+      const existing = readAuthUsers();
+      if (!existing.some((u) => u.userId === i.user.id)) {
+        appendAuthUser({ userId: i.user.id, accessToken: access_token, refreshToken: refresh_token });
+      }
       // DM them success
       i.user.send({ embeds: [E.authSuccessDmEmbed()] }).catch(() => {});
       await i.followUp({
         embeds: [
-          E.helpEmbed().setTitle("✅ Authentication Successful").setDescription(`<@${i.user.id}> has been authenticated.`),
+          E.helpEmbed()
+            .setTitle("✅ Authentication Successful")
+            .setDescription(`<@${i.user.id}> has been authenticated and added to stock.\n\nYour token is now stored and ready to be used with \`/djoin\`.`),
         ],
         ephemeral: true,
       });

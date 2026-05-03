@@ -43,7 +43,11 @@ export function getRedirectUri(): string {
 }
 
 // ─── Data paths ────────────────────────────────────────────────────────────────
-export const DATA_DIR = path.resolve("artifacts/data");
+// DATA_DIR can be overridden via env var — set DATA_DIR=/data in Railway and
+// attach a Railway Volume at /data so tokens survive redeploys.
+export const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.resolve("artifacts/data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 export const AUTHS_FILE = path.join(DATA_DIR, "auths.txt");
