@@ -54,6 +54,7 @@ export function helpEmbed(): EmbedBuilder {
         value:
           "`/count` — Stored token count\n" +
           "`/list_users` — List authenticated users\n" +
+          "`/restock` — Push authenticated users into bulk stock (owners only)\n" +
           "`/clear_stock` — Remove all stored tokens (owners only)\n" +
           "`/schedule_restock time:1h` — Schedule a restock (owners only)\n" +
           "`/list_schedules` — View pending schedules (owners only)\n" +

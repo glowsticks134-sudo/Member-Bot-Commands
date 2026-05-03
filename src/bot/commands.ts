@@ -80,6 +80,7 @@ import {
   doCheckTokens,
   doCleanupServers,
   doMassJoin,
+  doRestockFromStored,
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
@@ -123,6 +124,7 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
         { name: "server_id", description: "Target server ID", type: O.String, required: true },
       ],
     },
+    { name: "restock", description: "Push all authenticated users into bulk stock (owners only)", type: 1 },
     { name: "clear_stock", description: "Remove all stored tokens (owners only)", type: 1 },
     { name: "cleanup_servers", description: "Leave all other servers (owners only)", type: 1 },
     { name: "control_panel", description: "Open the interactive owner control panel", type: 1 },
@@ -548,6 +550,13 @@ export async function handleSlash(
     case "add": {
       const { embed, components } = E.addEmbed(client);
       await i.reply({ embeds: [embed], components });
+      return;
+    }
+    case "restock": {
+      if (!(await ownerGuard(i))) return;
+      await i.deferReply({ ephemeral: true });
+      const e = await doRestockFromStored();
+      await i.followUp({ embeds: [e], ephemeral: true });
       return;
     }
     case "djoin": {

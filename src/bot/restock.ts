@@ -65,6 +65,42 @@ export function clearStock(): void {
   clearAuthUsers();
 }
 
+// Move all stored OAuth tokens (stored_tokens.txt) into bulk stock (auths.txt)
+export async function doRestockFromStored(): Promise<EmbedBuilder> {
+  const { readStoredTokens } = await import("../storage/tokens.js");
+  const stored = readStoredTokens();
+  if (stored.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("⚠️ No Stored Tokens")
+      .setDescription(
+        "There are no authenticated users to restock from.\n\nUsers need to authorize via `/get_token` first.",
+      )
+      .setColor(COLOR.yellow);
+  }
+  const existing = readAuthUsers();
+  const existingIds = new Set(existing.map((u) => u.userId));
+  let added = 0;
+  let dupes = 0;
+  for (const u of stored) {
+    if (existingIds.has(u.userId)) {
+      dupes++;
+      continue;
+    }
+    appendAuthUser(u);
+    existingIds.add(u.userId);
+    added++;
+  }
+  return new EmbedBuilder()
+    .setTitle("📦 Restock Complete")
+    .setColor(COLOR.green)
+    .setTimestamp(new Date())
+    .addFields(
+      { name: "✅ Added to Stock", value: String(added), inline: true },
+      { name: "🔁 Already in Stock", value: String(dupes), inline: true },
+      { name: "📦 Total in Stock", value: String(readAuthUsers().length), inline: true },
+    );
+}
+
 export async function doAddToken(raw: string): Promise<EmbedBuilder> {
   const parsed = parseTokenLines(raw);
   if (parsed.length === 0) {

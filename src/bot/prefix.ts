@@ -13,13 +13,14 @@ import {
   doCheckTokens,
   doCleanupServers,
   doMassJoin,
+  doRestockFromStored,
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
 import type { BotState } from "./client.js";
 
 const OWNER_PREFIX_CMDS = new Set([
-  "clear_stock", "djoin", "cleanup_servers", "control_panel",
+  "restock", "clear_stock", "djoin", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
   "setowner_role", "removeowner_role", "restart", "dashboard",
   "schedule_restock", "list_schedules", "cancel_schedule",
@@ -119,7 +120,11 @@ export async function handlePrefix(
         await message.reply({ embeds: [E.denyEmbed()] });
         return;
       }
-      if (cmd === "clear_stock") {
+      if (cmd === "restock") {
+        const loading = await message.reply("🔄 Restocking from stored tokens…");
+        const e = await doRestockFromStored();
+        await loading.edit({ content: "", embeds: [e] });
+      } else if (cmd === "clear_stock") {
         clearStock();
         await message.reply("🧹 Stock cleared.");
       } else if (cmd === "djoin") {
