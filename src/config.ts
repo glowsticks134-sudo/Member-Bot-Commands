@@ -22,10 +22,12 @@ export const SUPER_OWNER_ID =
 export const OWNER_PASSWORD = process.env.OWNER_PASSWORD ?? "";
 export const SUPER_OWNER_PASSWORD = process.env.SUPER_OWNER_PASSWORD ?? "";
 
-// Railway deploy webhook — set RAILWAY_DEPLOY_HOOK_URL in Railway variables
-// to enable the /deploy bot command. Get it from:
-// Railway dashboard → your service → Settings → Deploy → Deploy Webhook
-export const RAILWAY_DEPLOY_HOOK_URL = process.env.RAILWAY_DEPLOY_HOOK_URL ?? "";
+// Railway API token — set RAILWAY_API_TOKEN in Railway variables to enable /deploy.
+// Get it from: Railway dashboard → (top-right avatar) → Account Settings → API Tokens → Create Token
+export const RAILWAY_API_TOKEN = process.env.RAILWAY_API_TOKEN ?? "";
+// These are automatically injected by Railway into the running container:
+export const RAILWAY_SERVICE_ID = process.env.RAILWAY_SERVICE_ID ?? "";
+export const RAILWAY_ENVIRONMENT_ID = process.env.RAILWAY_ENVIRONMENT_ID ?? "";
 
 export const MAX_ROLES_PER_GUILD = 10;
 export const PREFIX = "!";

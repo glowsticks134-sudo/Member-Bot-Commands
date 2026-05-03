@@ -125,21 +125,34 @@ export async function handlePrefix(
         const e = await doRestockFromStored();
         await loading.edit({ content: "", embeds: [e] });
       } else if (cmd === "deploy") {
-        const { RAILWAY_DEPLOY_HOOK_URL } = await import("../config.js");
-        if (!RAILWAY_DEPLOY_HOOK_URL) {
+        const { RAILWAY_API_TOKEN, RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID } = await import("../config.js");
+        if (!RAILWAY_API_TOKEN) {
           await message.reply(
-            "❌ `RAILWAY_DEPLOY_HOOK_URL` is not set.\n\n" +
-            "Go to Railway → your service → **Settings** → **Deploy** → copy the **Deploy Webhook** URL, then add it as `RAILWAY_DEPLOY_HOOK_URL` in Railway Variables.",
+            "❌ `RAILWAY_API_TOKEN` is not set.\n\n" +
+            "**One-time setup:**\n" +
+            "1. Railway → click your **avatar** (top-right) → **Account Settings**\n" +
+            "2. **API Tokens** → **Create Token** → copy it\n" +
+            "3. Add it as `RAILWAY_API_TOKEN` in Railway → your service → Variables",
           );
           return;
         }
         const loading = await message.reply("⏳ Triggering Railway redeploy…");
         try {
-          const res = await fetch(RAILWAY_DEPLOY_HOOK_URL, { method: "POST" });
-          if (res.ok) {
-            await loading.edit("🚀 **Railway redeploy triggered!** The service will rebuild and restart in ~1–2 minutes.");
+          const res = await fetch("https://backboard.railway.app/graphql/v2", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${RAILWAY_API_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: `mutation { serviceInstanceRedeploy(serviceId: "${RAILWAY_SERVICE_ID}", environmentId: "${RAILWAY_ENVIRONMENT_ID}") }`,
+            }),
+          });
+          const json = await res.json() as { errors?: { message: string }[] };
+          if (json.errors?.length) {
+            await loading.edit(`❌ Railway API error: ${json.errors[0].message}`);
           } else {
-            await loading.edit(`❌ Deploy webhook failed: HTTP ${res.status}.`);
+            await loading.edit("🚀 **Railway redeploy triggered!** The service will rebuild and restart in ~1–2 minutes.");
           }
         } catch (err) {
           await loading.edit(`❌ Could not reach Railway: ${(err as Error).message}`);

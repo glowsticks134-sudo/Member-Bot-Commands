@@ -562,30 +562,42 @@ export async function handleSlash(
     }
     case "deploy": {
       if (!(await ownerGuard(i))) return;
-      const { RAILWAY_DEPLOY_HOOK_URL } = await import("../config.js");
-      if (!RAILWAY_DEPLOY_HOOK_URL) {
+      const { RAILWAY_API_TOKEN, RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID } = await import("../config.js");
+      if (!RAILWAY_API_TOKEN) {
         await i.reply({
           content:
-            "❌ `RAILWAY_DEPLOY_HOOK_URL` is not set.\n\n" +
-            "**To set it up:**\n" +
-            "1. Open Railway → your service → **Settings** → **Deploy**\n" +
-            "2. Copy the **Deploy Webhook** URL\n" +
-            "3. Add it as `RAILWAY_DEPLOY_HOOK_URL` in Railway → Variables",
+            "❌ `RAILWAY_API_TOKEN` is not set.\n\n" +
+            "**One-time setup:**\n" +
+            "1. Open Railway → click your **avatar** (top-right) → **Account Settings**\n" +
+            "2. Go to **API Tokens** → click **Create Token**\n" +
+            "3. Copy the token\n" +
+            "4. Add it as `RAILWAY_API_TOKEN` in Railway → your service → **Variables**\n\n" +
+            "After that, `/deploy` will work forever.",
           ephemeral: true,
         });
         return;
       }
       await i.deferReply({ ephemeral: true });
       try {
-        const res = await fetch(RAILWAY_DEPLOY_HOOK_URL, { method: "POST" });
-        if (res.ok) {
+        const res = await fetch("https://backboard.railway.app/graphql/v2", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${RAILWAY_API_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: `mutation { serviceInstanceRedeploy(serviceId: "${RAILWAY_SERVICE_ID}", environmentId: "${RAILWAY_ENVIRONMENT_ID}") }`,
+          }),
+        });
+        const json = await res.json() as { errors?: { message: string }[] };
+        if (json.errors?.length) {
           await i.followUp({
-            content: "🚀 **Railway redeploy triggered!**\nThe service will rebuild and restart in ~1–2 minutes.",
+            content: `❌ Railway API error: ${json.errors[0].message}`,
             ephemeral: true,
           });
         } else {
           await i.followUp({
-            content: `❌ Deploy webhook failed: HTTP ${res.status}. Check the URL in Railway Variables.`,
+            content: "🚀 **Railway redeploy triggered!**\nThe service will rebuild and restart in ~1–2 minutes.",
             ephemeral: true,
           });
         }
