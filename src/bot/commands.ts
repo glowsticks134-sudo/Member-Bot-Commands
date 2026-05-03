@@ -45,13 +45,6 @@ import {
   setAutoPing,
 } from "../storage/autoping.js";
 import { sendAutoPing } from "./autoping.js";
-import {
-  cleanIncomingTokens,
-  clearIncomingTokens,
-  ensureIncomingTokensFile,
-  INCOMING_TOKENS_FILE,
-  readIncomingTokensRaw,
-} from "../storage/bulkTokenFile.js";
 import { exchangeCode } from "../oauth.js";
 import {
   saveUserAuth,
@@ -84,11 +77,9 @@ import * as E from "./embeds.js";
 import { isAuthorizedMember } from "./permissions.js";
 import {
   clearStock,
-  doAddToken,
   doCheckTokens,
   doCleanupServers,
   doMassJoin,
-  doRestock,
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
@@ -130,23 +121,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       type: 1,
       options: [
         { name: "server_id", description: "Target server ID", type: O.String, required: true },
-      ],
-    },
-    {
-      name: "restock",
-      description: "Add bulk tokens (owners only)",
-      type: 1,
-      options: [
-        { name: "file", description: ".txt file with tokens", type: O.Attachment, required: false },
-        { name: "tokens", description: "Pasted token list", type: O.String, required: false },
-      ],
-    },
-    {
-      name: "add_token",
-      description: "Authorize one token (owners only)",
-      type: 1,
-      options: [
-        { name: "token_line", description: "userId,accessToken,refreshToken", type: O.String, required: true },
       ],
     },
     { name: "clear_stock", description: "Remove all stored tokens (owners only)", type: 1 },
@@ -364,28 +338,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       description: "Send a test auto-ping for yourself",
       type: 1,
     },
-    {
-      name: "load_tokens",
-      description:
-        "Load tokens from artifacts/data/incoming_tokens.txt into bulk stock",
-      type: 1,
-      options: [
-        {
-          name: "keep_file",
-          description:
-            "If true, leaves the file as-is after loading (default: clears it)",
-          type: O.Boolean,
-          required: false,
-        },
-      ],
-    },
-    {
-      name: "tokens_file_path",
-      description:
-        "Show the path to the incoming-tokens file and create it if missing",
-      type: 1,
-    },
-
   ];
 }
 
@@ -628,36 +580,6 @@ export async function handleSlash(
         }
       });
       if (e) await i.editReply({ content: "", embeds: [e] });
-      return;
-    }
-    case "restock": {
-      if (!(await ownerGuard(i))) return;
-      const file = i.options.getAttachment("file");
-      const tokens = i.options.getString("tokens");
-      if (!file && !tokens) {
-        await i.reply({ embeds: [E.noTokensEmbed()], ephemeral: true });
-        return;
-      }
-      await i.deferReply({ ephemeral: true });
-      let raw = tokens ?? "";
-      if (file) {
-        const t = await readAttachment(file);
-        if (t === null) {
-          await i.followUp({ content: "❌ Could not read attachment.", ephemeral: true });
-          return;
-        }
-        raw = t;
-      }
-      const e = await doRestock(raw);
-      await i.followUp({ embeds: [e], ephemeral: true });
-      return;
-    }
-    case "add_token": {
-      if (!(await ownerGuard(i))) return;
-      const line = i.options.getString("token_line", true);
-      await i.deferReply({ ephemeral: true });
-      const e = await doAddToken(line);
-      await i.followUp({ embeds: [e], ephemeral: true });
       return;
     }
     case "clear_stock":
@@ -1106,48 +1028,6 @@ export async function handleSlash(
       if (!(await ownerGuard(i))) return;
       await i.reply({
         embeds: [E.autoPingStatusEmbed(i.guildId!)],
-        ephemeral: true,
-      });
-      return;
-    }
-    case "load_tokens": {
-      if (!(await ownerGuard(i))) return;
-      ensureIncomingTokensFile();
-      const raw = readIncomingTokensRaw();
-      const { cleaned, lineCount } = cleanIncomingTokens(raw);
-      if (lineCount === 0) {
-        await i.reply({
-          content:
-            `📄 The incoming-tokens file is empty.\n` +
-            `Path: \`${INCOMING_TOKENS_FILE}\`\n` +
-            "Drop tokens in (one per line: `userId,accessToken,refreshToken`) and run this again.",
-          ephemeral: true,
-        });
-        return;
-      }
-      await i.deferReply({ ephemeral: true });
-      const embed = await doRestock(cleaned);
-      const keepFile = i.options.getBoolean("keep_file") ?? false;
-      if (!keepFile) clearIncomingTokens();
-      await i.followUp({
-        embeds: [embed],
-        content: keepFile
-          ? `📄 Read **${lineCount}** line(s) from file (file kept).`
-          : `📄 Read **${lineCount}** line(s) from file. File cleared.`,
-        ephemeral: true,
-      });
-      return;
-    }
-    case "tokens_file_path": {
-      if (!(await ownerGuard(i))) return;
-      ensureIncomingTokensFile();
-      await i.reply({
-        content:
-          `📄 Drop your tokens here, one per line:\n` +
-          `\`${INCOMING_TOKENS_FILE}\`\n\n` +
-          `Format: \`userId,accessToken,refreshToken\`\n` +
-          `Lines starting with \`#\` are ignored.\n` +
-          `Then run \`/load_tokens\`.`,
         ephemeral: true,
       });
       return;

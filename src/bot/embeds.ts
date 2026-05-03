@@ -54,8 +54,6 @@ export function helpEmbed(): EmbedBuilder {
         value:
           "`/count` — Stored token count\n" +
           "`/list_users` — List authenticated users\n" +
-          "`/restock` — Add bulk tokens (owners only)\n" +
-          "`/add_token` — Authorize one token (owners only)\n" +
           "`/clear_stock` — Remove all stored tokens (owners only)\n" +
           "`/schedule_restock time:1h` — Schedule a restock (owners only)\n" +
           "`/list_schedules` — View pending schedules (owners only)\n" +
@@ -216,7 +214,7 @@ export function stockEmbed(): EmbedBuilder {
     .setDescription(
       has
         ? `There are currently **${count}** tokens in stock and ready to use.`
-        : "There are **no tokens** in stock.\n\nUse `/restock` to add tokens.",
+        : "There are **no tokens** in stock.\n\nTokens are added automatically when users authorize via `/get_token`.",
     )
     .setColor(has ? COLOR.green : COLOR.red)
     .setTimestamp(now())

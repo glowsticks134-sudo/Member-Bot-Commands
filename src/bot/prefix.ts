@@ -13,14 +13,13 @@ import {
   doCheckTokens,
   doCleanupServers,
   doMassJoin,
-  doRestock,
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
 import type { BotState } from "./client.js";
 
 const OWNER_PREFIX_CMDS = new Set([
-  "restock", "clear_stock", "djoin", "cleanup_servers", "control_panel",
+  "clear_stock", "djoin", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
   "setowner_role", "removeowner_role", "restart", "dashboard",
   "schedule_restock", "list_schedules", "cancel_schedule",
@@ -120,25 +119,7 @@ export async function handlePrefix(
         await message.reply({ embeds: [E.denyEmbed()] });
         return;
       }
-      if (cmd === "restock") {
-        let raw = args.join(" ").trim();
-        if (message.attachments.size > 0) {
-          const att = message.attachments.first()!;
-          try {
-            raw = await (await fetch(att.url)).text();
-          } catch {
-            await message.reply("❌ Could not download the attachment.");
-            return;
-          }
-        }
-        if (!raw) {
-          await message.reply({ embeds: [E.noTokensEmbed()] });
-          return;
-        }
-        const loading = await message.reply("🔄 Restocking…");
-        const e = await doRestock(raw);
-        await loading.edit({ content: "", embeds: [e] });
-      } else if (cmd === "clear_stock") {
+      if (cmd === "clear_stock") {
         clearStock();
         await message.reply("🧹 Stock cleared.");
       } else if (cmd === "djoin") {
