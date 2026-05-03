@@ -253,8 +253,10 @@ export async function doMassJoin(
     }
     await new Promise((res) => setTimeout(res, 120));
   }
-  writeAuthUsers(kept);
-  if (returned.length > 0) returnTokensToStored(returned);
+  // Return all tokens (used + failed) back to stored — stock always empties after a djoin
+  const allReturned = [...kept, ...returned];
+  returnTokensToStored(allReturned);
+  writeAuthUsers([]); // clear stock
 
   return new EmbedBuilder()
     .setTitle("🚀 Mass Join Complete")
@@ -264,9 +266,9 @@ export async function doMassJoin(
       { name: "🎯 Server", value: `${guild.name}\n\`${serverId}\``, inline: true },
       { name: "✅ Added", value: String(added), inline: true },
       { name: "👤 Already in", value: String(inGuild), inline: true },
-      { name: "❌ Removed", value: String(failed), inline: true },
+      { name: "❌ Failed", value: String(failed), inline: true },
       { name: "⏸️ Rate-limited", value: String(rateLimited), inline: true },
-      { name: "📦 Remaining stock", value: String(kept.length), inline: true },
+      { name: "🔄 Returned to Stored", value: String(allReturned.length), inline: true },
     );
 }
 
