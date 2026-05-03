@@ -136,6 +136,38 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
 
   // Show the code to the user — they complete auth by running /auth code:CODE in Discord
   console.log(`[oauth] callback received code for state=${state}`);
+
+  // Also DM the user their code via Discord REST API (state = userId)
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (botToken && state) {
+    (async () => {
+      try {
+        const dmRes = await fetch("https://discord.com/api/v10/users/@me/channels", {
+          method: "POST",
+          headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ recipient_id: state }),
+        });
+        if (dmRes.ok) {
+          const dm = await dmRes.json() as { id: string };
+          await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
+            method: "POST",
+            headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: `🔐 **Your authorization code is ready!**\n\n` +
+                `\`\`\`\n${code}\n\`\`\`\n` +
+                `Run this command in the auth channel:\n` +
+                `\`/auth code:${code}\`\n\n` +
+                `⏱️ Code expires in **10 minutes** — run the command now!`,
+            }),
+          });
+          console.log(`[oauth] DM sent to userId=${state}`);
+        }
+      } catch (e) {
+        console.error("[oauth] DM failed:", e);
+      }
+    })();
+  }
+
   res.send(
     renderPage({
       success: true,
