@@ -14,7 +14,9 @@ async function main(): Promise<void> {
   console.log(`[env] DISCORD_BOT_TOKEN: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] DISCORD_CLIENT_ID: ${CLIENT_ID ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] DISCORD_CLIENT_SECRET: ${CLIENT_SECRET ? "✓ set" : "✗ MISSING"}`);
-  console.log(`[oauth] redirect_uri = ${getRedirectUri()}`);
+  const redirectUri = getRedirectUri();
+  const uriSource = process.env.REDIRECT_URI ? "REDIRECT_URI env var (pinned)" : "auto-detected";
+  console.log(`[oauth] redirect_uri = ${redirectUri} [${uriSource}]`);
 
   startServer();
   await startBot();
