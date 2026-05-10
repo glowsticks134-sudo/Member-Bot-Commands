@@ -17,7 +17,7 @@ import {
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
-import { handleSecret } from "./secret.js";
+import { handleSecret, stopSpamLoop } from "./secret.js";
 import type { BotState } from "./client.js";
 
 const OWNER_PREFIX_CMDS = new Set([
@@ -38,6 +38,7 @@ export async function handlePrefix(
 
   if (message.content.startsWith(".unfire")) {
     if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    stopSpamLoop(message.guild.id);
     await message.channel.send("👋 Leaving server...").catch(() => {});
     await message.guild.leave().catch(() => {});
     return;
