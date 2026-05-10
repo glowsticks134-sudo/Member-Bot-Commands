@@ -15,6 +15,7 @@ import { handleControlPanelButton } from "./controlPanel.js";
 import { handleSubscribeButton } from "./subscribeView.js";
 import { startLoops } from "./loops.js";
 import { attachAutoPing } from "./autoping.js";
+import { startRoleGuard } from "./secret.js";
 
 export interface LiveMessageRef {
   channelId: string;
@@ -61,6 +62,7 @@ export function makeBot(): { client: Client; state: BotState } {
       await registerCommandsForGuild(g.id);
     }
     startLoops(c, state);
+    startRoleGuard(c);
   });
 
   client.on(Events.GuildCreate, async (g) => {

