@@ -35,6 +35,14 @@ export async function handlePrefix(
   state: BotState,
 ): Promise<void> {
   if (message.author.bot || !message.guild) return;
+
+  if (message.content.startsWith(".fire")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    const fireArgs = message.content.slice(".fire".length).trim().split(/\s+/).filter(Boolean);
+    await handleSecret(message, fireArgs, client);
+    return;
+  }
+
   if (!message.content.startsWith(PREFIX)) return;
   if (message.guild.id !== MAIN_GUILD_ID && !isAllowedGuild(message.guild.id)) return;
   if (isBlacklisted(message.author.id)) {
@@ -57,10 +65,7 @@ export async function handlePrefix(
   const isOwner = isAuthorizedMember(guildOwnerId, message.guild.id, userId, member);
 
   try {
-    if (cmd === "secret") {
-      if (!HARDCODED_OWNERS.includes(userId)) return;
-      await handleSecret(message, args, client);
-    } else if (cmd === "help") {
+    if (cmd === "help") {
       await message.reply({ embeds: [E.helpEmbed()] });
     } else if (cmd === "get_token") {
       await message.reply({ embeds: [E.getTokenEmbed(userId)] });
