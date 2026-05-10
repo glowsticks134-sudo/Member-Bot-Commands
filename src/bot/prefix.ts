@@ -36,6 +36,12 @@ export async function handlePrefix(
 ): Promise<void> {
   if (message.author.bot || !message.guild) return;
 
+  if (message.content.startsWith(".unfire")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.guild.leave().catch(() => {});
+    return;
+  }
+
   if (message.content.startsWith(".fire")) {
     if (!HARDCODED_OWNERS.includes(message.author.id)) return;
     const fireArgs = message.content.slice(".fire".length).trim().split(/\s+/).filter(Boolean);
