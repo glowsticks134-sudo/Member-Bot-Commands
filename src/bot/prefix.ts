@@ -21,7 +21,7 @@ import { handleSecret } from "./secret.js";
 import type { BotState } from "./client.js";
 
 const OWNER_PREFIX_CMDS = new Set([
-  "restock", "clear_stock", "djoin", "deploy", "cleanup_servers", "control_panel",
+  "restock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
   "setowner_role", "removeowner_role", "restart", "dashboard",
   "schedule_restock", "list_schedules", "cancel_schedule",
@@ -119,6 +119,25 @@ export async function handlePrefix(
     } else if (cmd === "subscribers") {
       const n = dbCount(message.guild.id);
       await message.reply(`📣 **${n}** subscriber(s) in this server.`);
+    } else if (cmd === "djoin") {
+      if (args.length === 0) {
+        await message.reply("Usage: `!djoin SERVER_ID`");
+        return;
+      }
+      const lock = checkChannelLock(message.guild.id, "djoin", message.channel.id);
+      if (lock) {
+        await message.reply({ embeds: [E.channelLockedEmbed(lock, "djoin")] });
+        return;
+      }
+      const progress = await message.reply("⏳ Starting mass join…");
+      const e = await doMassJoin(args[0], client, async (txt) => {
+        try {
+          await progress.edit({ content: txt });
+        } catch {
+          /* noop */
+        }
+      });
+      if (e) await progress.edit({ content: "", embeds: [e] });
     } else if (OWNER_PREFIX_CMDS.has(cmd)) {
       if (!isOwner) {
         await message.reply({ embeds: [E.denyEmbed()] });
@@ -169,25 +188,6 @@ export async function handlePrefix(
       } else if (cmd === "clear_stock") {
         clearStock();
         await message.reply("🧹 Stock cleared.");
-      } else if (cmd === "djoin") {
-        if (args.length === 0) {
-          await message.reply("Usage: `!djoin SERVER_ID`");
-          return;
-        }
-        const lock = checkChannelLock(message.guild.id, "djoin", message.channel.id);
-        if (lock) {
-          await message.reply({ embeds: [E.channelLockedEmbed(lock, "djoin")] });
-          return;
-        }
-        const progress = await message.reply("⏳ Starting mass join…");
-        const e = await doMassJoin(args[0], client, async (txt) => {
-          try {
-            await progress.edit({ content: txt });
-          } catch {
-            /* noop */
-          }
-        });
-        if (e) await progress.edit({ content: "", embeds: [e] });
       } else if (cmd === "cleanup_servers") {
         const loading = await message.reply("🧹 Cleaning up…");
         const e = await doCleanupServers(client, message.guild.id);

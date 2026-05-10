@@ -638,12 +638,6 @@ export async function handleSlash(
         });
         return;
       }
-      // need to be authorized (stored token)
-      const stored = (await import("../storage/tokens.js")).findStoredToken(i.user.id);
-      if (!stored && !isAuthorizedMember(i.guild!.ownerId, i.guild!.id, i.user.id, await i.guild!.members.fetch(i.user.id).catch(() => null))) {
-        await i.reply({ embeds: [E.notAuthedEmbed()], ephemeral: true });
-        return;
-      }
       await i.deferReply();
       const e = await doMassJoin(sid, client, async (txt) => {
         try {
