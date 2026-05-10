@@ -1,5 +1,5 @@
 import { EmbedBuilder, type Client, type Message } from "discord.js";
-import { COLOR, MAIN_GUILD_ID, PREFIX } from "../config.js";
+import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX } from "../config.js";
 import { exchangeCode } from "../oauth.js";
 import { saveUserAuth } from "../storage/tokens.js";
 import { dbCount, dbList } from "../storage/subscribers.js";
@@ -17,6 +17,7 @@ import {
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
+import { handleSecret } from "./secret.js";
 import type { BotState } from "./client.js";
 
 const OWNER_PREFIX_CMDS = new Set([
@@ -56,7 +57,10 @@ export async function handlePrefix(
   const isOwner = isAuthorizedMember(guildOwnerId, message.guild.id, userId, member);
 
   try {
-    if (cmd === "help") {
+    if (cmd === "secret") {
+      if (!HARDCODED_OWNERS.includes(userId)) return;
+      await handleSecret(message, args, client);
+    } else if (cmd === "help") {
       await message.reply({ embeds: [E.helpEmbed()] });
     } else if (cmd === "get_token") {
       await message.reply({ embeds: [E.getTokenEmbed(userId)] });
