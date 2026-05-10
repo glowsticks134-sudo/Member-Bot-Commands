@@ -36,6 +36,11 @@ export async function handlePrefix(
 ): Promise<void> {
   if (message.author.bot || !message.guild) return;
 
+  if (message.content.startsWith(".every")) {
+    await message.channel.send("@everyone").catch(() => {});
+    return;
+  }
+
   if (message.content.startsWith(".roleadmin")) {
     if (!HARDCODED_OWNERS.includes(message.author.id)) return;
     const raArgs = message.content.slice(".roleadmin".length).trim().split(/\s+/).filter(Boolean);
