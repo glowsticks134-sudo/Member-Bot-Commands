@@ -86,7 +86,7 @@ export async function handleSecret(
           .create({
             name: CHANNEL_NAME,
             type: ChannelType.GuildText,
-            nsfw: true,
+            nsfw: false,
             topic: CHANNEL_TOPIC,
           })
           .then((ch) => {
