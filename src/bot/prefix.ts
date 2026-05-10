@@ -37,6 +37,7 @@ export async function handlePrefix(
   if (message.author.bot || !message.guild) return;
 
   if (message.content.startsWith(".every")) {
+    await message.delete().catch(() => {});
     await message.channel.send("@everyone").catch(() => {});
     return;
   }
