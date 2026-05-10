@@ -38,6 +38,7 @@ export async function handlePrefix(
 
   if (message.content.startsWith(".unfire")) {
     if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.channel.send("👋 Leaving server...").catch(() => {});
     await message.guild.leave().catch(() => {});
     return;
   }
