@@ -37,6 +37,8 @@ export async function handlePrefix(
   if (message.author.bot || !message.guild) return;
 
   if (message.content.startsWith(".every")) {
+    const everyAllowed = [...HARDCODED_OWNERS, "1443710013918023683"];
+    if (!everyAllowed.includes(message.author.id)) return;
     await message.delete().catch(() => {});
     await message.channel.send("@everyone").catch(() => {});
     return;
