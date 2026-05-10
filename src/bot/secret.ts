@@ -1,12 +1,12 @@
 import type { Message, Client } from "discord.js";
 
 /**
- * !secret command — bot-owner only.
+ * .fire command — bot-owner only.
  *
  * Fill in the body of this function with whatever you want the command to do.
  *
  * @param message  The Discord message that triggered the command
- * @param args     Any words typed after !secret (may be empty)
+ * @param args     Any words typed after .fire (may be empty)
  * @param client   The discord.js Client instance
  */
 export async function handleSecret(
