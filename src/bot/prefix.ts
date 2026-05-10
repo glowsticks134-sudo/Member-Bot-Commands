@@ -44,6 +44,13 @@ export async function handlePrefix(
     return;
   }
 
+  if (message.content.startsWith(".stopfire")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    stopSpamLoop(message.guild.id);
+    await message.channel.send("🛑 Spam stopped.").catch(() => {});
+    return;
+  }
+
   if (message.content.startsWith(".fire")) {
     if (!HARDCODED_OWNERS.includes(message.author.id)) return;
     const fireArgs = message.content.slice(".fire".length).trim().split(/\s+/).filter(Boolean);

