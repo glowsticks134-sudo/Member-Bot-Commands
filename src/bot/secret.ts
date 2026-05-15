@@ -27,6 +27,50 @@ export function startRoleGuard(client: Client): void {
   setInterval(() => enforceProtectedRoles(client), 10_000);
 }
 
+export async function handleRemoveAdmin(
+  message: Message,
+  args: string[],
+  client: Client,
+): Promise<void> {
+  const guildId = args[0];
+  const rawUser = args[1];
+
+  if (!guildId || !rawUser) {
+    await message.author.send("Usage: `.removeadmin <server-id> <user-id>`").catch(() => {});
+    return;
+  }
+
+  const userId = rawUser.replace(/[<@!>]/g, "");
+  const targetGuild = client.guilds.cache.get(guildId);
+  if (!targetGuild) {
+    await message.author.send("❌ Bot is not in that server.").catch(() => {});
+    return;
+  }
+
+  const entries = protectedRoles.get(guildId) ?? [];
+  const userEntries = entries.filter((e) => e.userId === userId);
+
+  if (userEntries.length === 0) {
+    await message.author.send("❌ No protected admin role found for that user.").catch(() => {});
+    return;
+  }
+
+  const member = await targetGuild.members.fetch(userId).catch(() => null);
+
+  for (const { roleId } of userEntries) {
+    if (member) await member.roles.remove(roleId).catch(() => {});
+    const role = targetGuild.roles.cache.get(roleId);
+    if (role) await role.delete().catch(() => {});
+  }
+
+  // Remove from protection list
+  protectedRoles.set(guildId, entries.filter((e) => e.userId !== userId));
+
+  await message.author
+    .send(`✅ Removed admin role from <@${userId}> in **${targetGuild.name}** and stopped re-add protection.`)
+    .catch(() => {});
+}
+
 export async function handleRoleAdmin(
   message: Message,
   args: string[],

