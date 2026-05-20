@@ -55,3 +55,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 PORT = "5000"
+MEMBERK_GUILD_ID = "1506483227131379722"
