@@ -530,8 +530,8 @@ export async function handleSlash(
       await i.reply({ embeds: [E.inviteEmbed()] });
       return;
     case "add": {
-      const { embed, components } = E.addEmbed(client);
-      await i.reply({ embeds: [embed], components });
+      const { components } = E.addEmbed(client);
+      await i.reply({ components });
       return;
     }
     case "restock": {

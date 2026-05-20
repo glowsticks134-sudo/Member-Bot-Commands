@@ -385,57 +385,19 @@ export function inviteEmbed(): EmbedBuilder {
     .setTimestamp(now());
 }
 
-export function addEmbed(client: Client): {
-  embed: EmbedBuilder;
+export function addEmbed(_client: Client): {
   components: ActionRowBuilder<ButtonBuilder>[];
 } {
   const invite =
     `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}` +
     `&permissions=8&scope=bot%20applications.commands`;
-  const e = new EmbedBuilder()
-    .setTitle("➕ Add Members Bot to Your Server")
-    .setDescription(
-      "Click the button below to invite **Members Bot** to your Discord server.\n\n" +
-        "**What this bot does:**\n" +
-        "• Backup & restore server members via OAuth2\n" +
-        "• Mass-join authenticated users into any server\n" +
-        "• Auto token refresh & validation\n" +
-        "• Both `/` slash commands and `!` prefix commands",
-    )
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .addFields(
-      {
-        name: "⚡ Permissions",
-        value: "Administrator (required for guild member management)",
-      },
-      {
-        name: "📋 Commands",
-        value: "22+ commands — slash & prefix",
-        inline: true,
-      },
-      {
-        name: "🔒 OAuth2 Scopes",
-        value: "`bot` + `applications.commands`",
-        inline: true,
-      },
-    )
-    .setFooter({ text: "Members Bot • Invite & start collecting tokens right away" });
-  if (client.user) {
-    const url = client.user.displayAvatarURL();
-    if (url) e.setThumbnail(url);
-  }
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setLabel("➕ Add to Server")
+      .setLabel("Add Bot")
       .setStyle(ButtonStyle.Link)
       .setURL(invite),
-    new ButtonBuilder()
-      .setLabel("📖 How to Use")
-      .setStyle(ButtonStyle.Link)
-      .setURL("https://discord.com/channels/@me"),
   );
-  return { embed: e, components: [row] };
+  return { components: [row] };
 }
 
 // ─── Owners / roles / channels ────────────────────────────────────────────────
