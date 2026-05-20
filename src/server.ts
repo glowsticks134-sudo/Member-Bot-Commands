@@ -14,94 +14,160 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function renderPage(opts: {
-  success: boolean;
-  title: string;
-  body: string;
-}): string {
-  const { success, title, body } = opts;
-  const accent = success ? "#3ba55d" : "#ed4245";
-  const icon = success ? "&#10003;" : "&#33;";
+function renderVerifySuccessPage(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)}</title>
+<title>Verified — Memberk</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    min-height: 100vh; padding: 24px;
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    min-height: 100vh;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: #0b0d12; color: #f2f3f5;
     display: flex; align-items: center; justify-content: center;
   }
   .card {
-    width: 100%; max-width: 460px;
-    background: #181a20; border: 1px solid #2a2d34; border-radius: 14px;
-    padding: 28px 24px; text-align: center;
+    width: 100%; max-width: 420px; margin: 24px;
+    background: #181a20; border: 1px solid #2a2d34; border-radius: 18px;
+    padding: 40px 32px; text-align: center;
   }
-  .icon {
-    width: 48px; height: 48px; border-radius: 50%;
+  .ring {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: rgba(245,158,11,0.12); border: 2px solid #f59e0b;
     display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 14px; font-size: 24px; font-weight: 700; color: #0b0d12;
-    background: ${accent};
+    margin: 0 auto 24px;
+    animation: pop .4s cubic-bezier(.34,1.56,.64,1) both;
   }
-  h1 { margin: 0 0 12px; font-size: 20px; font-weight: 600; }
-  p { color: #b9bbbe; font-size: 14px; line-height: 1.6; margin: 0 0 10px; }
-  code { background: #0b0d12; padding: 2px 6px; border-radius: 4px; color: #b9bbbe; }
-  .hint { color: #72767d; font-size: 12px; line-height: 1.5; margin-top: 18px; }
-  .field-wrap { text-align: left; margin-top: 16px; }
-  .lbl { display: block; font-size: 12px; color: #9aa0a6; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
-  .row { display: flex; gap: 8px; }
-  .field {
-    flex: 1; min-width: 0;
-    background: #0b0d12; border: 1px solid #2a2d34; border-radius: 8px;
-    color: #fbbf24; padding: 10px 12px; font-size: 14px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  @keyframes pop {
+    from { transform: scale(.5); opacity: 0; }
+    to   { transform: scale(1);  opacity: 1; }
   }
-  .field:focus { outline: none; border-color: #5865f2; }
-  .copy {
-    flex: 0 0 auto; padding: 0 16px; border: 0; border-radius: 8px;
-    background: #5865f2; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
+  .check {
+    width: 36px; height: 36px; stroke: #f59e0b;
+    stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round;
+    animation: draw .5s ease .3s both;
+    stroke-dasharray: 60;
+    stroke-dashoffset: 60;
   }
-  .copy:hover { background: #4752c4; }
-  .copy.ok { background: #3ba55d !important; }
+  @keyframes draw {
+    to { stroke-dashoffset: 0; }
+  }
+  .brand {
+    font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: #f59e0b; margin-bottom: 12px;
+  }
+  h1 { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+  .sub {
+    font-size: 14px; color: #9aa0a6; line-height: 1.6; margin-bottom: 28px;
+  }
+  .divider { border: none; border-top: 1px solid #2a2d34; margin-bottom: 24px; }
+  .step {
+    display: flex; align-items: flex-start; gap: 12px;
+    text-align: left; margin-bottom: 14px;
+  }
+  .step-dot {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.4);
+    color: #f59e0b; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .step-text { font-size: 13px; color: #b9bbbe; line-height: 1.5; }
+  .step-text strong { color: #e3e5e8; font-weight: 600; }
+  .close-hint {
+    margin-top: 24px; font-size: 12px; color: #4f545c;
+  }
+  .close-hint span { color: #f59e0b; font-weight: 600; }
 </style>
 </head>
 <body>
-  <main class="card">
-    <div class="icon">${icon}</div>
-    <h1>${escapeHtml(title)}</h1>
-    ${body}
-  </main>
+  <div class="card">
+    <div class="ring">
+      <svg class="check" viewBox="0 0 24 24">
+        <polyline points="4 12 9 17 20 6"/>
+      </svg>
+    </div>
+    <div class="brand">Memberk</div>
+    <h1>You're Verified!</h1>
+    <p class="sub">Your Discord account has been linked successfully.<br>You'll receive a DM from the bot confirming it.</p>
+    <hr class="divider">
+    <div class="step">
+      <div class="step-dot">1</div>
+      <div class="step-text"><strong>Token saved</strong> — your auth token is stored and ready to use.</div>
+    </div>
+    <div class="step">
+      <div class="step-dot">2</div>
+      <div class="step-text"><strong>Check Discord</strong> — a confirmation DM has been sent to you.</div>
+    </div>
+    <div class="step">
+      <div class="step-dot">3</div>
+      <div class="step-text"><strong>You're done</strong> — you can now be joined to servers via <code style="background:#0b0d12;padding:2px 5px;border-radius:4px;color:#f59e0b;font-size:12px">/djoin</code>.</div>
+    </div>
+    <p class="close-hint">This tab will close in <span id="t">5</span>s — or close it now.</p>
+  </div>
 <script>
-  (function () {
-    document.querySelectorAll(".copy").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var field = document.getElementById(btn.dataset.target);
-        if (!field) return;
-        field.select();
-        field.setSelectionRange(0, 99999);
-        var done = function () {
-          var orig = btn.textContent;
-          btn.textContent = "Copied!";
-          btn.classList.add("ok");
-          setTimeout(function () { btn.textContent = orig; btn.classList.remove("ok"); }, 1400);
-        };
-        if (navigator.clipboard && window.isSecureContext) {
-          navigator.clipboard.writeText(field.value).then(done, function () { try { document.execCommand("copy"); done(); } catch(e){} });
-        } else {
-          try { document.execCommand("copy"); done(); } catch(e) {}
-        }
-      });
-    });
-  })();
+  var s = 5;
+  var el = document.getElementById("t");
+  var iv = setInterval(function() {
+    s--;
+    if (el) el.textContent = String(s);
+    if (s <= 0) { clearInterval(iv); window.close(); }
+  }, 1000);
 </script>
 </body>
 </html>`;
 }
+
+function renderVerifyErrorPage(title: string, body: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)} — Memberk</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0b0d12; color: #f2f3f5;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    width: 100%; max-width: 420px; margin: 24px;
+    background: #181a20; border: 1px solid #2a2d34; border-radius: 18px;
+    padding: 40px 32px; text-align: center;
+  }
+  .ring {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: rgba(237,66,69,0.1); border: 2px solid #ed4245;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 24px;
+    animation: pop .4s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .x { font-size: 32px; line-height: 1; color: #ed4245; font-weight: 700; }
+  .brand { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #f59e0b; margin-bottom: 12px; }
+  h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+  .sub { font-size: 14px; color: #9aa0a6; line-height: 1.6; }
+  .hint { margin-top: 24px; font-size: 13px; color: #72767d; }
+  code { background: #0b0d12; padding: 2px 6px; border-radius: 4px; color: #f59e0b; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="ring"><div class="x">✕</div></div>
+    <div class="brand">Memberk</div>
+    <h1>${escapeHtml(title)}</h1>
+    <p class="sub">${body}</p>
+    <p class="hint">Run <code>/get_token</code> in Discord to get a fresh link.</p>
+  </div>
+</body>
+</html>`;
+}
+
 
 async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
   res.set("content-type", "text/html; charset=utf-8");
@@ -115,24 +181,18 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
       : null;
 
   if (error) {
-    res.send(
-      renderPage({
-        success: false,
-        title: "Authorization Cancelled",
-        body: `<p>${escapeHtml(errorDesc ?? error)}</p><p class="hint">Run <code>/get_token</code> in Discord again and click the new link.</p>`,
-      }),
-    );
+    res.send(renderVerifyErrorPage(
+      "Authorization Cancelled",
+      escapeHtml(errorDesc ?? error),
+    ));
     return;
   }
 
   if (!code) {
-    res.send(
-      renderPage({
-        success: false,
-        title: "No Code in URL",
-        body: `<p>Discord didn't include a code. Try the link again.</p><p class="hint">Run <code>/get_token</code> in Discord to get a new link.</p>`,
-      }),
-    );
+    res.send(renderVerifyErrorPage(
+      "No Code in URL",
+      "Discord didn't send a code. Try the link again.",
+    ));
     return;
   }
 
@@ -142,13 +202,10 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
   const tokenRes = await exchangeCode(code);
   if (!tokenRes.ok) {
     console.error(`[oauth] token exchange failed: ${tokenRes.error}`);
-    res.send(
-      renderPage({
-        success: false,
-        title: "Authorization Failed",
-        body: `<p>Could not exchange your code for a token.</p><p><code>${escapeHtml(tokenRes.error)}</code></p><p class="hint">Run <code>/get_token</code> in Discord again to get a fresh link.</p>`,
-      }),
-    );
+    res.send(renderVerifyErrorPage(
+      "Authorization Failed",
+      `Could not link your account. <code style="background:#0b0d12;padding:2px 5px;border-radius:4px;color:#f59e0b;font-size:12px">${escapeHtml(tokenRes.error.slice(0, 120))}</code>`,
+    ));
     return;
   }
 
@@ -205,21 +262,7 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     })();
   }
 
-  res.send(
-    renderPage({
-      success: true,
-      title: "✅ You're Authenticated!",
-      body: `
-        <p style="font-size:15px;font-weight:600;color:#fff;margin-bottom:18px;">
-          Your token has been saved automatically.
-        </p>
-        <p style="color:#b9bbbe;font-size:14px;line-height:1.6;margin-bottom:16px;">
-          You don't need to do anything else — you'll receive a Discord DM confirming it worked.
-          You can now close this tab.
-        </p>
-        <p class="hint">You can now be joined to servers using <code>/djoin</code>.</p>`,
-    }),
-  );
+  res.send(renderVerifySuccessPage());
 }
 
 export function startServer(): void {
