@@ -118,7 +118,7 @@ export function helpEmbed(): EmbedBuilder {
     );
 }
 
-export function verifyEmbed(): {
+export function verifyEmbed(imageUrl?: string | null): {
   embed: EmbedBuilder;
   components: ActionRowBuilder<ButtonBuilder>[];
 } {
@@ -131,21 +131,17 @@ export function verifyEmbed(): {
   });
   const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
   const embed = new EmbedBuilder()
-    .setTitle("🔐 Verify & Get Access")
     .setDescription(
-      "Click the button below to verify your Discord account and get access to this server.\n\n" +
-        "**How it works:**\n" +
-        "1. Click **Verify Now**\n" +
-        "2. Authorize on Discord's page\n" +
-        "3. You'll get a DM confirming it worked — you're done!\n\n" +
-        "*This only takes a few seconds and is completely safe.*",
+      "✅ **Memberk Official Verification** ✅\n\n" +
+        "✅ Verify or no restocks! ( Cannot farm members too )",
     )
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .setFooter({ text: "Memberk • Click Verify Now to get started" });
+    .setColor(0xf59e0b);
+  if (imageUrl) {
+    embed.setImage(imageUrl);
+  }
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setLabel("✅ Verify Now")
+      .setLabel("Verify")
       .setStyle(ButtonStyle.Link)
       .setURL(url),
   );

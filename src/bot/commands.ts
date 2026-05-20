@@ -263,6 +263,12 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
           required: false,
           channel_types: [ChannelType.GuildText],
         },
+        {
+          name: "image",
+          description: "Image to display in the verification embed",
+          type: O.Attachment,
+          required: false,
+        },
       ],
     },
 
@@ -924,7 +930,9 @@ export async function handleSlash(
       await i.deferReply({ ephemeral: true });
       const channelOpt = i.options.getChannel("channel");
       const targetChannelId = channelOpt ? channelOpt.id : i.channelId!;
-      const { embed, components } = E.verifyEmbed();
+      const imageAttachment = i.options.getAttachment("image");
+      const imageUrl = imageAttachment?.url ?? null;
+      const { embed, components } = E.verifyEmbed(imageUrl);
       const { getVerifyClient } = await import("./verifyBot.js");
       const verifyClient = getVerifyClient();
       let usingBot2 = false;
