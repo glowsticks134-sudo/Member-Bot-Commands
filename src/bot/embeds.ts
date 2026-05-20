@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import {
   CLIENT_ID,
+  CLIENT_3_ID,
   COLOR,
   HARDCODED_OWNERS,
   MAX_ROLES_PER_GUILD,
@@ -388,8 +389,9 @@ export function inviteEmbed(): EmbedBuilder {
 export function addEmbed(_client: Client): {
   components: ActionRowBuilder<ButtonBuilder>[];
 } {
+  const id = CLIENT_3_ID || CLIENT_ID;
   const invite =
-    `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}` +
+    `https://discord.com/oauth2/authorize?client_id=${id}` +
     `&permissions=8&scope=bot%20applications.commands`;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()

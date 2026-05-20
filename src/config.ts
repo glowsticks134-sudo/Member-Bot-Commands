@@ -8,6 +8,11 @@ export const BOT_TOKEN = process.env.TOKEN_1 ?? process.env.DISCORD_TOKEN_1 ?? p
 export const BOT2_TOKEN = process.env.TOKEN_2 ?? process.env.DISCORD_TOKEN_2 ?? process.env.DISCORD_BOT2_TOKEN ?? "";
 export const BOT3_TOKEN = process.env.TOKEN_3 ?? process.env.DISCORD_TOKEN_3 ?? process.env.DISCORD_BOT3_TOKEN ?? "";
 export const CLIENT_ID = process.env.CLIENT_1 ?? process.env.DISCORD_CLIENT_ID ?? "";
+
+function parseClientIdFromToken(token: string): string {
+  try { return Buffer.from(token.split(".")[0], "base64").toString("utf8"); } catch { return ""; }
+}
+export const CLIENT_3_ID = process.env.CLIENT_3 ?? (BOT3_TOKEN ? parseClientIdFromToken(BOT3_TOKEN) : "");
 export const CLIENT_SECRET = process.env.SECRET_1 ?? process.env.DISCORD_CLIENT_SECRET ?? "";
 
 export const MAIN_GUILD_ID =
