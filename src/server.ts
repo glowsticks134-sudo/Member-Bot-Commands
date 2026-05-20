@@ -281,8 +281,13 @@ ${botStatus.connected ? `<p class="hint">✅ Everything looks good. Bot is onlin
     console.log(`[server] listening on http://0.0.0.0:${PORT}`);
   });
 
-  server.on("error", (err) => {
-    console.error("[server] failed to start:", err);
-    process.exit(1);
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`[server] port ${PORT} in use — retrying in 2s…`);
+      setTimeout(() => server.listen(PORT, "0.0.0.0"), 2000);
+    } else {
+      console.error("[server] failed to start:", err);
+      process.exit(1);
+    }
   });
 }
