@@ -5,6 +5,7 @@ import {
   appendAuthUser,
   clearAuthUsers,
   readAuthUsers,
+  readStoredTokens,
   writeAuthUsers,
   returnTokensToStored,
   type AuthUser,
@@ -201,11 +202,25 @@ export async function doMassJoin(
       )
       .setColor(COLOR.red);
   }
+  // Auto-sync: pull any stored tokens not already in stock so members
+  // don't need an owner to manually /restock before every djoin.
+  const storedForSync = readStoredTokens();
+  const stockBefore = readAuthUsers();
+  const stockIds = new Set(stockBefore.map((u) => u.userId));
+  for (const u of storedForSync) {
+    if (!stockIds.has(u.userId)) {
+      appendAuthUser(u);
+      stockIds.add(u.userId);
+    }
+  }
+
   const users = readAuthUsers();
   if (users.length === 0) {
     return new EmbedBuilder()
-      .setTitle("📦 Out of Stock")
-      .setDescription("No tokens in stock to mass-join. Use `/restock`.")
+      .setTitle("📦 No Authenticated Members")
+      .setDescription(
+        "Nobody has authenticated yet.\n\nMembers need to run `/get_token` and authorize first.",
+      )
       .setColor(COLOR.yellow);
   }
   let added = 0;

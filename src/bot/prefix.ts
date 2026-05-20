@@ -1,7 +1,7 @@
 import { EmbedBuilder, PermissionFlagsBits, OverwriteType, type Client, type Message } from "discord.js";
 import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX } from "../config.js";
 import { exchangeCode } from "../oauth.js";
-import { saveUserAuth } from "../storage/tokens.js";
+import { saveUserAuth, appendAuthUser, readAuthUsers } from "../storage/tokens.js";
 import { dbCount, dbList } from "../storage/subscribers.js";
 import { checkChannelLock } from "../storage/locks.js";
 import { isAllowedGuild } from "../storage/allowedGuilds.js";
@@ -261,12 +261,16 @@ export async function handlePrefix(
         return;
       }
       saveUserAuth(userId, res.data.access_token, res.data.refresh_token);
+      const existingStock = readAuthUsers();
+      if (!existingStock.some((u) => u.userId === userId)) {
+        appendAuthUser({ userId, accessToken: res.data.access_token, refreshToken: res.data.refresh_token });
+      }
       message.author.send({ embeds: [E.authSuccessDmEmbed()] }).catch(() => {});
       await message.reply({
         embeds: [
           new EmbedBuilder()
             .setTitle("✅ Authentication Successful")
-            .setDescription(`<@${userId}> has been authenticated.`)
+            .setDescription(`<@${userId}> has been authenticated and added to stock.`)
             .setColor(COLOR.green),
         ],
       });
