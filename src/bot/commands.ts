@@ -977,32 +977,44 @@ export async function handleSlash(
       const channelOpt = i.options.getChannel("channel");
       const targetChannelId = channelOpt ? channelOpt.id : i.channelId!;
       const { embed, components } = E.verifyEmbed();
-      const bot2Token = process.env.DISCORD_BOT2_TOKEN;
-      const sendToken = bot2Token || process.env.DISCORD_BOT_TOKEN;
-      if (!sendToken) {
-        await i.editReply({ content: "❌ No bot token available to send the embed." });
-        return;
+      const { getVerifyClient } = await import("./verifyBot.js");
+      const verifyClient = getVerifyClient();
+      let usingBot2 = false;
+      if (verifyClient) {
+        try {
+          const ch = await verifyClient.channels.fetch(targetChannelId);
+          if (ch && "send" in ch) {
+            await (ch as import("discord.js").TextChannel).send({ embeds: [embed], components });
+            usingBot2 = true;
+          }
+        } catch {
+          usingBot2 = false;
+        }
       }
-      const res = await fetch(`https://discord.com/api/v10/channels/${targetChannelId}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bot ${sendToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          embeds: [embed.toJSON()],
-          components: components.map((r) => r.toJSON()),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.text().catch(() => "");
-        await i.editReply({
-          content: `❌ Failed to post embed (HTTP ${res.status}).\n\`\`\`${err.slice(0, 300)}\`\`\`\n${!bot2Token ? "⚠️ **Tip:** Set `DISCORD_BOT2_TOKEN` to post as the verification bot instead." : ""}`,
+      if (!usingBot2) {
+        const sendToken = process.env.DISCORD_TOKEN_1 ?? process.env.DISCORD_BOT_TOKEN ?? "";
+        if (!sendToken) {
+          await i.editReply({ content: "❌ No bot token available to send the embed." });
+          return;
+        }
+        const res = await fetch(`https://discord.com/api/v10/channels/${targetChannelId}/messages`, {
+          method: "POST",
+          headers: { Authorization: `Bot ${sendToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            embeds: [embed.toJSON()],
+            components: components.map((r) => r.toJSON()),
+          }),
         });
-        return;
+        if (!res.ok) {
+          const err = await res.text().catch(() => "");
+          await i.editReply({
+            content: `❌ Failed to post embed (HTTP ${res.status}).\n\`\`\`${err.slice(0, 300)}\`\`\`\n⚠️ Set \`DISCORD_TOKEN_2\` to post as the dedicated verification bot.`,
+          });
+          return;
+        }
       }
       await i.editReply({
-        content: `✅ Verification embed posted in <#${targetChannelId}>${!bot2Token ? "\n⚠️ Posted as **Bot 1** (set `DISCORD_BOT2_TOKEN` to use the dedicated verification bot)" : " using the **verification bot**"}.`,
+        content: `✅ Verification embed posted in <#${targetChannelId}> using **${usingBot2 ? "Bot 2 (verification bot)" : "Bot 1 (fallback)"}**.${!usingBot2 ? "\n💡 Set `DISCORD_TOKEN_2` to post as the dedicated verification bot." : ""}`,
       });
       return;
     }
