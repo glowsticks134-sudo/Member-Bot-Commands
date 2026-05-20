@@ -992,7 +992,7 @@ export async function handleSlash(
         }
       }
       if (!usingBot2) {
-        const sendToken = process.env.DISCORD_TOKEN_1 ?? process.env.DISCORD_BOT_TOKEN ?? "";
+        const sendToken = process.env.TOKEN_1 ?? process.env.DISCORD_TOKEN_1 ?? process.env.DISCORD_BOT_TOKEN ?? "";
         if (!sendToken) {
           await i.editReply({ content: "❌ No bot token available to send the embed." });
           return;

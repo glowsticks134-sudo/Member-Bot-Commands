@@ -9,7 +9,7 @@ export function getVerifyClient(): Client | null {
 
 export async function startVerifyBot(): Promise<void> {
   if (!BOT2_TOKEN) {
-    console.log("[bot2] DISCORD_TOKEN_2 not set — verification bot will not connect");
+    console.log("[bot2] TOKEN_2 not set — verification bot will not connect");
     return;
   }
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });

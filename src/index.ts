@@ -13,11 +13,11 @@ async function main(): Promise<void> {
   botStatus.clientIdConfigured = Boolean(CLIENT_ID);
   botStatus.clientSecretConfigured = Boolean(CLIENT_SECRET);
 
-  console.log(`[env] DISCORD_TOKEN_1: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"} (Bot 1 — main)`);
-  console.log(`[env] DISCORD_TOKEN_2: ${BOT2_TOKEN ? "✓ set" : "○ not set (Bot 2 — verification, optional)"}`);
-  console.log(`[env] DISCORD_TOKEN_3: ${BOT3_TOKEN ? "✓ set" : "○ not set (Bot 3 — joiner, falls back to Bot 1)"}`);
-  console.log(`[env] DISCORD_CLIENT_ID: ${CLIENT_ID ? "✓ set" : "✗ MISSING"}`);
-  console.log(`[env] DISCORD_CLIENT_SECRET: ${CLIENT_SECRET ? "✓ set" : "✗ MISSING"}`);
+  console.log(`[env] TOKEN_1: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"} (Bot 1 — main)`);
+  console.log(`[env] TOKEN_2: ${BOT2_TOKEN ? "✓ set" : "○ not set (Bot 2 — verification, optional)"}`);
+  console.log(`[env] TOKEN_3: ${BOT3_TOKEN ? "✓ set" : "○ not set (Bot 3 — joiner, falls back to Bot 1)"}`);
+  console.log(`[env] CLIENT_1: ${CLIENT_ID ? "✓ set" : "✗ MISSING"}`);
+  console.log(`[env] SECRET_1: ${CLIENT_SECRET ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] OWNER_PASSWORD: ${process.env.OWNER_PASSWORD ? "✓ set" : "✗ MISSING — owner password commands will not work"}`);
   console.log(`[env] SUPER_OWNER_PASSWORD: ${process.env.SUPER_OWNER_PASSWORD ? "✓ set" : "✗ MISSING — super-owner password commands will not work"}`);
   const redirectUri = getRedirectUri();
