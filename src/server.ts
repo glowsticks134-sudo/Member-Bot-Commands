@@ -240,7 +240,7 @@ export function startServer(): void {
       `<tr><td class="lbl">${label}</td><td class="${ok ? "ok" : "err"}">${ok ? "✓" : "✗"} ${ok ? "OK" : "MISSING"}${detail ? ` — ${detail}` : ""}</td></tr>`;
     const html = `<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Memberty Bot — Status</title>
+<title>Memberk Bot — Status</title>
 <style>
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0b0d12;color:#f2f3f5;display:flex;align-items:flex-start;justify-content:center;min-height:100vh}
@@ -256,7 +256,7 @@ td{padding:9px 12px;border-bottom:1px solid #2a2d34;font-size:14px}
 code{background:#0b0d12;padding:2px 6px;border-radius:4px;color:#b9bbbe}
 </style>
 </head><body><div class="card">
-<h1>🤖 Memberty Bot</h1>
+<h1>🤖 Memberk Bot</h1>
 <p class="sub">Server uptime: ${upStr} &nbsp;|&nbsp; Started: ${botStatus.startedAt.toUTCString()}</p>
 <table>
 ${row("Discord Bot", botStatus.connected, botStatus.tag ?? "")}

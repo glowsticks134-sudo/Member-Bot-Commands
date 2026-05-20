@@ -4,7 +4,7 @@ export function getLandingHtml(): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Memberty — Grow Your Discord Community</title>
+<title>Memberk — Grow Your Discord Community</title>
 <meta name="description" content="The most powerful private Discord bot for mass server joining, OAuth2 token management, auto-ping welcomes, and scheduled member restocks.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235865F2'/><text x='16' y='22' text-anchor='middle' font-size='18' font-family='system-ui'>🤖</text></svg>">
 <style>
@@ -197,7 +197,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
       <div class="nav-logo-icon">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#fff"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg>
       </div>
-      Memberty
+      Memberk
     </a>
     <div class="nav-links">
       <a href="#features">Features</a>
@@ -243,7 +243,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
     <div class="text-center">
       <div class="section-tag">FEATURES</div>
       <h2 class="section-heading">Everything you need to scale</h2>
-      <p class="section-sub">Built exclusively for approved server owners. Memberty handles the heavy lifting so you can focus on your community.</p>
+      <p class="section-sub">Built exclusively for approved server owners. Memberk handles the heavy lifting so you can focus on your community.</p>
     </div>
     <div class="features-grid">
       <div class="feature-card">
@@ -264,7 +264,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
       <div class="feature-card">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
         <div class="feature-title">Scheduled Restocks</div>
-        <div class="feature-desc">Set daily or custom restock schedules and Memberty keeps pulling members automatically — no manual work.</div>
+        <div class="feature-desc">Set daily or custom restock schedules and Memberk keeps pulling members automatically — no manual work.</div>
       </div>
       <div class="feature-card">
         <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
@@ -361,11 +361,11 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg>
         </div>
         <div>
-          <div class="discord-name">Memberty</div>
+          <div class="discord-name">Memberk</div>
           <div class="discord-verified"><span class="discord-dot"></span> Verified Bot</div>
         </div>
       </div>
-      <div class="discord-body"><strong style="color:#fff">Memberty</strong> wants to access your Discord account.</div>
+      <div class="discord-body"><strong style="color:#fff">Memberk</strong> wants to access your Discord account.</div>
       <div class="discord-perms">
         <div class="discord-perm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Know what servers you're in</div>
         <div class="discord-perm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Join servers on your behalf</div>
@@ -407,7 +407,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
       <div>
         <div class="section-tag">SECURITY</div>
         <h2 class="section-heading">Built with security<br>at its core.</h2>
-        <p class="section-sub">Memberty is designed from the ground up with member trust in mind. Every token and every action is handled with care.</p>
+        <p class="section-sub">Memberk is designed from the ground up with member trust in mind. Every token and every action is handled with care.</p>
         <ul class="check-list">
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Only approved servers can use the bot</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> No data is ever shared with third parties</li>
@@ -439,7 +439,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
           <div class="testi-avatar" style="background:#5865F2">SK</div>
           <div><div class="testi-user">ServerOwner_K</div><div class="testi-time">TODAY AT 9:14 AM</div></div>
         </div>
-        <div class="testi-text">Memberty literally saved hours of manual work. Set up a restock, came back the next morning to 800 new members. Insane.</div>
+        <div class="testi-text">Memberk literally saved hours of manual work. Set up a restock, came back the next morning to 800 new members. Insane.</div>
       </div>
       <div class="testi-card">
         <div class="testi-header">
@@ -468,8 +468,8 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
   <div class="section-inner">
     <div class="cta-inner">
       <h2 class="cta-heading">Ready to scale your<br>Discord server?</h2>
-      <p class="cta-sub">Memberty is available for approved server owners only. Request access today and start growing your community on autopilot.</p>
-      <a href="mailto:request@memberty.bot" class="btn-cta">
+      <p class="cta-sub">Memberk is available for approved server owners only. Request access today and start growing your community on autopilot.</p>
+      <a href="mailto:request@memberk.bot" class="btn-cta">
         Request Access
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </a>
@@ -487,7 +487,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
           <div class="nav-logo-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#fff"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg>
           </div>
-          Memberty
+          Memberk
         </a>
         <p class="footer-brand-desc">The private Discord bot for serious server owners. Mass joins, token management, and automated growth tools.</p>
       </div>
@@ -519,7 +519,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
       </div>
     </div>
     <div class="footer-bottom">
-      <span>&copy; ${new Date().getFullYear()} Memberty Bot. All rights reserved.</span>
+      <span>&copy; ${new Date().getFullYear()} Memberk Bot. All rights reserved.</span>
       <span>Not affiliated with Discord Inc.</span>
     </div>
   </div>

@@ -142,7 +142,7 @@ export function verifyEmbed(): {
     )
     .setColor(COLOR.blurple)
     .setTimestamp(now())
-    .setFooter({ text: "Memberty • Click Verify Now to get started" });
+    .setFooter({ text: "Memberk • Click Verify Now to get started" });
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setLabel("✅ Verify Now")
@@ -188,14 +188,14 @@ export function authSuccessDmEmbed(): EmbedBuilder {
     .setTitle("✅ You're Authorized!")
     .setDescription(
       "You have been **successfully authorized**.\n\n" +
-        "🛡️ **Only use `/djoin` in Memberty.** Any other server " +
+        "🛡️ **Only use `/djoin` in Memberk.** Any other server " +
         "claiming to use this bot is a **scam** — do not trust it.\n\n" +
         "📦 `/djoin` only works **when there is stock available**. " +
         "If stock is empty, wait for a restock before trying.",
     )
     .setColor(COLOR.green)
     .setTimestamp(now())
-    .setFooter({ text: "Memberty • Authorization confirmed" });
+    .setFooter({ text: "Memberk • Authorization confirmed" });
 }
 
 // ─── Stock / users / status ───────────────────────────────────────────────────
@@ -697,7 +697,7 @@ export function wrongGuildEmbed(): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle("🚫 Wrong Server")
     .setDescription(
-      "Memberty bot commands **only work in the official Memberty server**.\n\n" +
+      "Memberk bot commands **only work in the official Memberk server**.\n\n" +
         "🛡️ Any other server claiming to use this bot is a **scam** — do not trust it.",
     )
     .setColor(COLOR.red);

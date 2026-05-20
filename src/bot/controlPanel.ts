@@ -13,13 +13,13 @@ import type { BotState } from "./client.js";
 
 export function controlPanelEmbed(): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle("🛠️ Memberty Control Panel")
+    .setTitle("🛠️ Memberk Control Panel")
     .setDescription(
       "Quick access to common owner actions. Buttons are owner-only " +
         "and ephemeral — only the user who clicked sees the result.",
     )
     .setColor(COLOR.blurple)
-    .setFooter({ text: "Memberty • Use the buttons below" });
+    .setFooter({ text: "Memberk • Use the buttons below" });
 }
 
 function btn(

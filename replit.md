@@ -1,11 +1,11 @@
-# Memberty + Gecko Discord Bot (TypeScript)
+# Memberk + Gecko Discord Bot (TypeScript)
 
 ## Overview
 
 Single-process **TypeScript / Node.js** application that runs:
 
 1. **A Discord bot** (`discord.js` v14) — slash + prefix commands for OAuth-based
-   member backup/restore (Memberty), plus the **Gecko** opt-in announcement
+   member backup/restore (Memberk), plus the **Gecko** opt-in announcement
    features (subscribe / unsubscribe buttons, `/announce`).
 2. **An Express web server** — handles the OAuth2 redirect landing page.
 
@@ -38,7 +38,7 @@ This is wired to the **Start application** workflow.
 | `DISCORD_BOT_TOKEN`     |   yes\*  | Bot will not connect without it                    |
 | `DISCORD_CLIENT_ID`     |   yes\*  | Required for OAuth links and slash command sync    |
 | `DISCORD_CLIENT_SECRET` |   yes\*  | Required for OAuth token exchange                  |
-| `MEMBERTY_GUILD_ID`     |    no    | Defaults to `1489676641150963936`                  |
+| `MEMBERK_GUILD_ID`     |    no    | Defaults to `1489676641150963936`                  |
 | `REDIRECT_URI`          |    no    | Overrides the default OAuth redirect URI           |
 | `REPLIT_DOMAINS`        |   auto   | Used to derive the public domain                   |
 | `RAILWAY_PUBLIC_DOMAIN` |   auto   | Used to derive the public domain                   |
@@ -91,7 +91,7 @@ artifacts/data/           # Runtime data (gitignored, sensitive)
 
 ## Slash commands
 
-All commands are restricted to the main guild (`MEMBERTY_GUILD_ID`).
+All commands are restricted to the main guild (`MEMBERK_GUILD_ID`).
 Both `/slash` and `!prefix` variants exist for the most common ones.
 
 - **Auth** — `/get_token`, `/auth code:`, `/check_tokens`
@@ -149,7 +149,7 @@ manually with `/auth code:CODE`.
 Edit `src/config.ts` to change:
 
 - `HARDCODED_OWNERS` — global owner Discord IDs (full access in any guild)
-- `MAIN_GUILD_ID` default — main Memberty server ID
+- `MAIN_GUILD_ID` default — main Memberk server ID
 - `MAX_ROLES_PER_GUILD = 10` — max role-limit entries per guild
 - The default OAuth redirect URI
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Memberty Bot — startup script for self-hosting / Pterodactyl
+# Memberk Bot — startup script for self-hosting / Pterodactyl
 # Required env vars: DISCORD_BOT_TOKEN, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
 # Optional:          REDIRECT_URI, PORT (defaults to 3000)
 set -e
@@ -11,5 +11,5 @@ if [ ! -d node_modules ]; then
   pnpm install --frozen-lockfile=false
 fi
 
-echo "==> Starting Memberty Bot…"
+echo "==> Starting Memberk Bot…"
 exec pnpm start

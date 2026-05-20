@@ -22,7 +22,7 @@ function Navbar() {
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: BLURPLE }}>
             <Bot className="w-5 h-5 text-white" />
           </div>
-          <span className="font-extrabold text-xl tracking-tight text-white">Memberty</span>
+          <span className="font-extrabold text-xl tracking-tight text-white">Memberk</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -122,7 +122,7 @@ function FeaturesSection() {
     {
       icon: <Clock className="w-5 h-5" />,
       title: 'Scheduled Restocks',
-      desc: 'Set daily or custom restock schedules and Memberty will keep pulling members automatically — no manual intervention needed.',
+      desc: 'Set daily or custom restock schedules and Memberk will keep pulling members automatically — no manual intervention needed.',
     },
     {
       icon: <ShieldCheck className="w-5 h-5" />,
@@ -132,7 +132,7 @@ function FeaturesSection() {
     {
       icon: <RefreshCw className="w-5 h-5" />,
       title: 'Token Auto-Refresh',
-      desc: 'Memberty automatically refreshes expiring OAuth2 tokens in the background, so your member pool stays fresh without any effort.',
+      desc: 'Memberk automatically refreshes expiring OAuth2 tokens in the background, so your member pool stays fresh without any effort.',
     },
     {
       icon: <Lock className="w-5 h-5" />,
@@ -156,7 +156,7 @@ function FeaturesSection() {
           </Badge>
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Everything you need to scale</h2>
           <p className="text-zinc-400 max-w-xl mx-auto text-base leading-relaxed">
-            Built exclusively for approved server owners. Memberty handles the heavy lifting so you can focus on building your community.
+            Built exclusively for approved server owners. Memberk handles the heavy lifting so you can focus on building your community.
           </p>
         </div>
 
@@ -296,7 +296,7 @@ function HowItWorks() {
                 <Bot className="w-6 h-6 text-white" />
               </div>
               <div>
-                <div className="font-bold text-white text-sm">Memberty</div>
+                <div className="font-bold text-white text-sm">Memberk</div>
                 <div className="text-xs text-zinc-400 flex items-center gap-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                   Verified Bot
@@ -304,7 +304,7 @@ function HowItWorks() {
               </div>
             </div>
             <p className="text-sm text-zinc-300 mb-4">
-              <strong className="text-white">Memberty</strong> wants to access your account
+              <strong className="text-white">Memberk</strong> wants to access your account
             </p>
             <div className="rounded-lg p-3 mb-4 space-y-2.5" style={{ background: '#2b2d31' }}>
               {['Know what servers you\'re in', 'Join servers on your behalf'].map(p => (
@@ -377,7 +377,7 @@ function SecuritySection() {
               Built with security<br />at its core.
             </h2>
             <p className="text-zinc-400 mb-6 leading-relaxed">
-              Memberty is designed from the ground up with member trust in mind. Every token, every action, every permission is handled with care.
+              Memberk is designed from the ground up with member trust in mind. Every token, every action, every permission is handled with care.
             </p>
             <ul className="space-y-3">
               {['Only approved servers can use the bot', 'No data is ever shared with third parties', 'Ephemeral replies keep sensitive data private', 'Audit logs for all super-owner actions'].map(t => (
@@ -399,7 +399,7 @@ function Testimonials() {
     {
       user: 'ServerOwner_K', tag: 'TODAY AT 9:14 AM', avatar: 'SK',
       color: '#5865F2',
-      text: 'Memberty literally saved hours of manual work. Set up a restock, came back the next morning to 800 new members. Insane.',
+      text: 'Memberk literally saved hours of manual work. Set up a restock, came back the next morning to 800 new members. Insane.',
     },
     {
       user: 'GuildMaster_R', tag: 'TODAY AT 11:02 AM', avatar: 'GR',
@@ -461,7 +461,7 @@ function CTA() {
           Ready to scale your<br />Discord server?
         </h2>
         <p className="text-xl text-zinc-400 mb-10 leading-relaxed">
-          Memberty is available for approved server owners only. Request access today and start growing your community on autopilot.
+          Memberk is available for approved server owners only. Request access today and start growing your community on autopilot.
         </p>
         <Button size="lg" className="text-white font-bold text-lg h-14 px-12 rounded-full border-0"
           style={{ background: BLURPLE, boxShadow: '0 0 40px -8px rgba(88,101,242,0.7)' }}>
@@ -483,7 +483,7 @@ function Footer() {
               <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: BLURPLE }}>
                 <Bot className="w-4 h-4 text-white" />
               </div>
-              <span className="font-extrabold text-lg text-white">Memberty</span>
+              <span className="font-extrabold text-lg text-white">Memberk</span>
             </div>
             <p className="text-zinc-500 text-sm leading-relaxed">
               The private Discord bot for serious server owners. Mass joins, token management, and automated growth tools.
@@ -518,7 +518,7 @@ function Footer() {
         </div>
         <div className="pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-zinc-600"
           style={{ borderColor: BORDER }}>
-          <span>© {new Date().getFullYear()} Memberty Bot. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} Memberk Bot. All rights reserved.</span>
           <span>Not affiliated with Discord Inc.</span>
         </div>
       </div>
