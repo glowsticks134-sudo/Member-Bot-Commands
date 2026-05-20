@@ -164,12 +164,8 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     { name: "dashboard", description: "Get private dashboard link (owners only)", type: 1 },
     {
       name: "setrole",
-      description: "Set role djoin limit (owners only)",
+      description: "Set a role djoin limit using preset tiers (owners only)",
       type: 1,
-      options: [
-        { name: "role", description: "Role", type: O.Role, required: true },
-        { name: "limit", description: "Max members", type: O.Integer, required: true, min_value: 0 },
-      ],
     },
     {
       name: "removerole",
@@ -722,19 +718,10 @@ export async function handleSlash(
       return;
     case "setrole": {
       if (!(await ownerGuard(i))) return;
-      const role = i.options.getRole("role", true);
-      const limit = i.options.getInteger("limit", true);
-      const existing = getGuildRoleLimits(i.guildId!);
-      if (!(role.id in existing) && Object.keys(existing).length >= MAX_ROLES_PER_GUILD) {
-        await i.reply({
-          content: `❌ Limit reached (${MAX_ROLES_PER_GUILD} roles max).`,
-          ephemeral: true,
-        });
-        return;
-      }
-      setGuildRoleLimit(i.guildId!, role.id, limit);
+      const { setRoleTierEmbed, setRoleTierComponents } = await import("./setRoleView.js");
       await i.reply({
-        content: `✅ <@&${role.id}> djoin limit set to **${limit}**.`,
+        embeds: [setRoleTierEmbed()],
+        components: setRoleTierComponents(),
         ephemeral: true,
       });
       return;

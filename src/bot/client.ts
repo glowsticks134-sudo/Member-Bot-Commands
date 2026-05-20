@@ -13,6 +13,7 @@ import { handleSlash, registerCommandsForGuild } from "./commands.js";
 import { handlePrefix } from "./prefix.js";
 import { handleControlPanelButton } from "./controlPanel.js";
 import { handleSubscribeButton } from "./subscribeView.js";
+import { handleSetRoleMenu } from "./setRoleView.js";
 import { startLoops } from "./loops.js";
 import { attachAutoPing } from "./autoping.js";
 import { startRoleGuard } from "./secret.js";
@@ -100,6 +101,14 @@ export function makeBot(): { client: Client; state: BotState } {
           await handleControlPanelButton(interaction, state);
         } else if (interaction.customId.startsWith("gecko:")) {
           await handleSubscribeButton(interaction);
+        }
+      } else if (interaction.isStringSelectMenu()) {
+        if (interaction.customId.startsWith("setrole:")) {
+          await handleSetRoleMenu(interaction);
+        }
+      } else if (interaction.isRoleSelectMenu()) {
+        if (interaction.customId.startsWith("setrole:")) {
+          await handleSetRoleMenu(interaction);
         }
       }
     } catch (e) {
