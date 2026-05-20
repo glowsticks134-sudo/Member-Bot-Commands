@@ -1,20 +1,17 @@
 import {
   Client,
-  EmbedBuilder,
   GatewayIntentBits,
   Events,
   REST,
   Routes,
   ApplicationCommandOptionType,
+  ChannelType,
   type RESTPostAPIApplicationCommandsJSONBody,
   type ChatInputCommandInteraction,
+  type TextChannel,
 } from "discord.js";
-import { BOT2_TOKEN } from "../config.js";
-import { exchangeCode } from "../oauth.js";
-import { saveUserAuth, appendAuthUser, readAuthUsers } from "../storage/tokens.js";
-import { doCheckTokens } from "./restock.js";
+import { BOT2_TOKEN, HARDCODED_OWNERS } from "../config.js";
 import * as E from "./embeds.js";
-import { COLOR } from "../config.js";
 
 function getClientIdFromToken(token: string): string {
   try {
@@ -24,6 +21,10 @@ function getClientIdFromToken(token: string): string {
   }
 }
 
+function isOwner(userId: string, guildOwnerId: string | null): boolean {
+  return HARDCODED_OWNERS.includes(userId) || userId === guildOwnerId;
+}
+
 let _client: Client | null = null;
 
 export function getVerifyClient(): Client | null {
@@ -31,84 +32,66 @@ export function getVerifyClient(): Client | null {
 }
 
 const VERIFY_COMMANDS: RESTPostAPIApplicationCommandsJSONBody[] = [
-  { name: "get_token", description: "Get your OAuth authorization link", type: 1 },
   {
-    name: "auth",
-    description: "Manually authenticate with an OAuth code",
+    name: "send_verify",
+    description: "Post the verification embed (owners only)",
     type: 1,
     options: [
       {
-        name: "code",
-        description: "OAuth code from auth link",
-        type: ApplicationCommandOptionType.String,
-        required: true,
+        name: "channel",
+        description: "Channel to post the embed in (defaults to current channel)",
+        type: ApplicationCommandOptionType.Channel,
+        required: false,
+        channel_types: [ChannelType.GuildText],
+      },
+      {
+        name: "image",
+        description: "Image to display in the verification embed",
+        type: ApplicationCommandOptionType.Attachment,
+        required: false,
       },
     ],
   },
-  { name: "check_tokens", description: "Validate all stored tokens (owners only)", type: 1 },
 ];
 
 async function registerVerifyCommands(clientId: string, guildId: string): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(BOT2_TOKEN);
   try {
     await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: VERIFY_COMMANDS });
-    console.log(`[bot2] registered ${VERIFY_COMMANDS.length} commands for guild ${guildId}`);
+    console.log(`[bot2] registered ${VERIFY_COMMANDS.length} command(s) for guild ${guildId}`);
   } catch (e) {
     console.error(`[bot2] failed to register commands for guild ${guildId}`, e);
   }
 }
 
 async function handleVerifyInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
-  const cmd = interaction.commandName;
+  if (interaction.commandName !== "send_verify") return;
 
-  switch (cmd) {
-    case "get_token":
-      await interaction.reply({ embeds: [E.getTokenEmbed(interaction.user.id)], ephemeral: true });
-      return;
+  const guildOwnerId = interaction.guild?.ownerId ?? null;
+  if (!isOwner(interaction.user.id, guildOwnerId)) {
+    await interaction.reply({ content: "❌ Only server owners can use this command.", ephemeral: true });
+    return;
+  }
 
-    case "auth": {
-      const code = interaction.options.getString("code", true);
-      await interaction.deferReply({ ephemeral: true });
-      const res = await exchangeCode(code.trim());
-      if (!res.ok) {
-        await interaction.followUp({
-          content:
-            `❌ Auth failed: ${res.error}\n\n**Common causes:**\n` +
-            `• Code expired (they last 10 minutes — get a fresh one with \`/get_token\`)\n` +
-            `• Code already used (each code works once only)\n` +
-            `• Redirect URI mismatch in bot config`,
-          ephemeral: true,
-        });
-        return;
-      }
-      const { access_token, refresh_token } = res.data;
-      saveUserAuth(interaction.user.id, access_token, refresh_token);
-      const existing = readAuthUsers();
-      if (!existing.some((u) => u.userId === interaction.user.id)) {
-        appendAuthUser({ userId: interaction.user.id, accessToken: access_token, refreshToken: refresh_token });
-      }
-      interaction.user.send({ embeds: [E.authSuccessDmEmbed()] }).catch(() => {});
-      await interaction.followUp({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("✅ Authentication Successful")
-            .setDescription(
-              `<@${interaction.user.id}> has been authenticated and added to stock.\n\n` +
-                `Your token is now stored and ready to be used with \`/djoin\`.`,
-            )
-            .setColor(COLOR.green),
-        ],
-        ephemeral: true,
-      });
-      return;
+  await interaction.deferReply({ ephemeral: true });
+
+  const channelOpt = interaction.options.getChannel("channel");
+  const targetChannelId = channelOpt ? channelOpt.id : interaction.channelId!;
+  const imageAttachment = interaction.options.getAttachment("image");
+  const imageUrl = imageAttachment?.url ?? null;
+
+  const { embed, components } = E.verifyEmbed(imageUrl);
+
+  try {
+    const ch = await interaction.client.channels.fetch(targetChannelId);
+    if (ch && "send" in ch) {
+      await (ch as TextChannel).send({ embeds: [embed], components });
+      await interaction.editReply({ content: `✅ Verification embed posted in <#${targetChannelId}>.` });
+    } else {
+      await interaction.editReply({ content: "❌ Could not find or send to that channel." });
     }
-
-    case "check_tokens": {
-      await interaction.deferReply({ ephemeral: true });
-      const e = await doCheckTokens();
-      await interaction.followUp({ embeds: [e], ephemeral: true });
-      return;
-    }
+  } catch (e) {
+    await interaction.editReply({ content: `❌ Failed to post embed: ${(e as Error).message}` });
   }
 }
 
