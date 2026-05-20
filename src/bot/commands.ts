@@ -261,6 +261,20 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     { name: "subscribers", description: "Count subscribers in this server", type: 1 },
     { name: "live_stock", description: "Post a live-updating stock embed (owners only)", type: 1 },
     { name: "live_status", description: "Post a live-updating status embed (owners only)", type: 1 },
+    {
+      name: "send_verify",
+      description: "Post a public verification embed using the verification bot (owners only)",
+      type: 1,
+      options: [
+        {
+          name: "channel",
+          description: "Channel to post the embed in (defaults to current channel)",
+          type: O.Channel,
+          required: false,
+          channel_types: [ChannelType.GuildText],
+        },
+      ],
+    },
 
     // ─── Super-owner / private commands ──────────────────────────────────
     {
@@ -953,6 +967,42 @@ export async function handleSlash(
       await i.reply({
         content: "✅ Live status embed posted (refreshes every 30s).",
         ephemeral: true,
+      });
+      return;
+    }
+
+    case "send_verify": {
+      if (!(await ownerGuard(i))) return;
+      await i.deferReply({ ephemeral: true });
+      const channelOpt = i.options.getChannel("channel");
+      const targetChannelId = channelOpt ? channelOpt.id : i.channelId!;
+      const { embed, components } = E.verifyEmbed();
+      const bot2Token = process.env.DISCORD_BOT2_TOKEN;
+      const sendToken = bot2Token || process.env.DISCORD_BOT_TOKEN;
+      if (!sendToken) {
+        await i.editReply({ content: "❌ No bot token available to send the embed." });
+        return;
+      }
+      const res = await fetch(`https://discord.com/api/v10/channels/${targetChannelId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bot ${sendToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          embeds: [embed.toJSON()],
+          components: components.map((r) => r.toJSON()),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text().catch(() => "");
+        await i.editReply({
+          content: `❌ Failed to post embed (HTTP ${res.status}).\n\`\`\`${err.slice(0, 300)}\`\`\`\n${!bot2Token ? "⚠️ **Tip:** Set `DISCORD_BOT2_TOKEN` to post as the verification bot instead." : ""}`,
+        });
+        return;
+      }
+      await i.editReply({
+        content: `✅ Verification embed posted in <#${targetChannelId}>${!bot2Token ? "\n⚠️ Posted as **Bot 1** (set `DISCORD_BOT2_TOKEN` to use the dedicated verification bot)" : " using the **verification bot**"}.`,
       });
       return;
     }

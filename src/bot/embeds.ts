@@ -95,7 +95,8 @@ export function helpEmbed(): EmbedBuilder {
         value:
           "`/setup_subscribe` — Post the opt-in subscribe embed\n" +
           "`/announce message:...` — DM subscribers an announcement\n" +
-          "`/subscribers` — Count subscribers in this server",
+          "`/subscribers` — Count subscribers in this server\n" +
+          "`/send_verify [#channel]` — Post public verification embed (owners only)",
       },
       {
         name: "🔧 Utility",
@@ -115,6 +116,40 @@ export function helpEmbed(): EmbedBuilder {
           "• Role-limit / channel commands: owner only",
       },
     );
+}
+
+export function verifyEmbed(): {
+  embed: EmbedBuilder;
+  components: ActionRowBuilder<ButtonBuilder>[];
+} {
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: "code",
+    redirect_uri: getRedirectUri(),
+    scope: "identify guilds.join",
+    prompt: "consent",
+  });
+  const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
+  const embed = new EmbedBuilder()
+    .setTitle("🔐 Verify & Get Access")
+    .setDescription(
+      "Click the button below to verify your Discord account and get access to this server.\n\n" +
+        "**How it works:**\n" +
+        "1. Click **Verify Now**\n" +
+        "2. Authorize on Discord's page\n" +
+        "3. You'll get a DM confirming it worked — you're done!\n\n" +
+        "*This only takes a few seconds and is completely safe.*",
+    )
+    .setColor(COLOR.blurple)
+    .setTimestamp(now())
+    .setFooter({ text: "Memberty • Click Verify Now to get started" });
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setLabel("✅ Verify Now")
+      .setStyle(ButtonStyle.Link)
+      .setURL(url),
+  );
+  return { embed, components: [row] };
 }
 
 export function getTokenEmbed(userId: string): EmbedBuilder {

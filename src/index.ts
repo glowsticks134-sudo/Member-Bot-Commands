@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { startServer } from "./server.js";
 import { startBot } from "./bot/client.js";
-import { BOT_TOKEN, CLIENT_ID, CLIENT_SECRET, getRedirectUri } from "./config.js";
+import { BOT_TOKEN, BOT2_TOKEN, BOT3_TOKEN, CLIENT_ID, CLIENT_SECRET, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 
 const _keepAlive = setInterval(() => {}, 1 << 30);
@@ -11,7 +11,9 @@ async function main(): Promise<void> {
   botStatus.clientIdConfigured = Boolean(CLIENT_ID);
   botStatus.clientSecretConfigured = Boolean(CLIENT_SECRET);
 
-  console.log(`[env] DISCORD_BOT_TOKEN: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"}`);
+  console.log(`[env] DISCORD_BOT_TOKEN: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"} (Bot 1 — main)`);
+  console.log(`[env] DISCORD_BOT2_TOKEN: ${BOT2_TOKEN ? "✓ set" : "○ not set (Bot 2 — verification, optional)"}`);
+  console.log(`[env] DISCORD_BOT3_TOKEN: ${BOT3_TOKEN ? "✓ set" : "○ not set (Bot 3 — joiner, falls back to Bot 1)"}`);
   console.log(`[env] DISCORD_CLIENT_ID: ${CLIENT_ID ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] DISCORD_CLIENT_SECRET: ${CLIENT_SECRET ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] OWNER_PASSWORD: ${process.env.OWNER_PASSWORD ? "✓ set" : "✗ MISSING — owner password commands will not work"}`);

@@ -5,6 +5,8 @@ import "dotenv/config";
 export const PORT = Number(process.env.PORT ?? 5000);
 
 export const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
+export const BOT2_TOKEN = process.env.DISCORD_BOT2_TOKEN ?? "";
+export const BOT3_TOKEN = process.env.DISCORD_BOT3_TOKEN ?? "";
 export const CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? "";
 export const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET ?? "";
 
