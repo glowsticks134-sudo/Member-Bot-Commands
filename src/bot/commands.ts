@@ -91,6 +91,16 @@ const O = ApplicationCommandOptionType;
 export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[] {
   return [
     { name: "help", description: "Show all commands", type: 1 },
+    { name: "get_token", description: "Get your OAuth authorization link", type: 1 },
+    {
+      name: "auth",
+      description: "Manually authenticate with an OAuth code",
+      type: 1,
+      options: [
+        { name: "code", description: "OAuth code from auth link", type: O.String, required: true },
+      ],
+    },
+    { name: "check_tokens", description: "Validate all stored tokens (owners only)", type: 1 },
     { name: "count", description: "Stored token count", type: 1 },
     { name: "list_users", description: "List authenticated users", type: 1 },
     { name: "stock", description: "Show current token stock", type: 1 },
@@ -501,6 +511,38 @@ export async function handleSlash(
   switch (cmd) {
     case "help":
       await i.reply({ embeds: [E.helpEmbed()] });
+      return;
+    case "get_token":
+      await i.reply({ embeds: [E.getTokenEmbed(i.user.id)], ephemeral: true });
+      return;
+    case "auth": {
+      const code = i.options.getString("code", true);
+      await i.deferReply({ ephemeral: true });
+      const res = await exchangeCode(code.trim());
+      if (!res.ok) {
+        await i.editReply({
+          content:
+            `❌ Auth failed: ${res.error}\n\n**Common causes:**\n` +
+            `• Code expired — get a fresh one with \`/get_token\`\n` +
+            `• Code already used (each code works once only)\n` +
+            `• Redirect URI mismatch in bot config`,
+        });
+        return;
+      }
+      const { access_token, refresh_token } = res.data;
+      saveUserAuth(i.user.id, access_token, refresh_token);
+      const existing = readAuthUsers();
+      if (!existing.some((u) => u.userId === i.user.id)) {
+        appendAuthUser({ userId: i.user.id, accessToken: access_token, refreshToken: refresh_token });
+      }
+      i.user.send({ embeds: [E.authSuccessDmEmbed()] }).catch(() => {});
+      await i.editReply({ content: "✅ Authenticated and added to stock." });
+      return;
+    }
+    case "check_tokens":
+      if (!(await ownerGuard(i))) return;
+      await i.deferReply({ ephemeral: true });
+      await i.editReply({ embeds: [await doCheckTokens()] });
       return;
     case "count":
       await i.reply({ embeds: [E.countEmbed()] });

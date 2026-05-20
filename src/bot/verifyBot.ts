@@ -10,7 +10,9 @@ import {
   type ChatInputCommandInteraction,
   type TextChannel,
 } from "discord.js";
-import { BOT2_TOKEN, HARDCODED_OWNERS } from "../config.js";
+import { BOT2_TOKEN } from "../config.js";
+import { getGuildOwnerRoles } from "../storage/owners.js";
+import { isAuthorizedMember } from "./permissions.js";
 import * as E from "./embeds.js";
 
 function getClientIdFromToken(token: string): string {
@@ -19,10 +21,6 @@ function getClientIdFromToken(token: string): string {
   } catch {
     return "";
   }
-}
-
-function isOwner(userId: string, guildOwnerId: string | null): boolean {
-  return HARDCODED_OWNERS.includes(userId) || userId === guildOwnerId;
 }
 
 let _client: Client | null = null;
@@ -67,9 +65,11 @@ async function registerVerifyCommands(clientId: string, guildId: string): Promis
 async function handleVerifyInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
   if (interaction.commandName !== "send_verify") return;
 
-  const guildOwnerId = interaction.guild?.ownerId ?? null;
-  if (!isOwner(interaction.user.id, guildOwnerId)) {
-    await interaction.reply({ content: "❌ Only server owners can use this command.", ephemeral: true });
+  const guild = interaction.guild;
+  const member = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+  const guildOwnerId = guild?.ownerId ?? "";
+  if (!isAuthorizedMember(guildOwnerId, guild?.id ?? "", interaction.user.id, member)) {
+    await interaction.reply({ content: "❌ Only owners can use this command.", ephemeral: true });
     return;
   }
 
