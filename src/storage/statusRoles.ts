@@ -7,6 +7,7 @@ const STATUS_ROLES_FILE = path.join(DATA_DIR, "status_roles.json");
 export interface StatusRoleConfig {
   inviteLink: string;
   roleId: string;
+  logChannelId?: string;
 }
 
 type StatusRoleStore = Record<string, StatusRoleConfig>;
@@ -27,6 +28,14 @@ export function setStatusRoleConfig(guildId: string, cfg: StatusRoleConfig): voi
   const all = read();
   all[guildId] = cfg;
   write(all);
+}
+
+export function setLogChannel(guildId: string, channelId: string): boolean {
+  const all = read();
+  if (!all[guildId]) return false;
+  all[guildId].logChannelId = channelId;
+  write(all);
+  return true;
 }
 
 export function clearStatusRoleConfig(guildId: string): boolean {

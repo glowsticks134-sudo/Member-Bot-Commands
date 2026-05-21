@@ -48,6 +48,7 @@ import { sendAutoPing } from "./autoping.js";
 import {
   clearStatusRoleConfig,
   getStatusRoleConfig,
+  setLogChannel,
   setStatusRoleConfig,
 } from "../storage/statusRoles.js";
 import { handleInfoCommand } from "./infoCommands.js";
@@ -409,6 +410,20 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     },
     { name: "status_role_clear",  description: "Remove the status invite role config (owners only)", type: 1 },
     { name: "status_role_status", description: "Show the current status invite role config",         type: 1 },
+    {
+      name: "bronze_log_set",
+      description: "Set the channel where free bronze role grants/removals are logged (owners only)",
+      type: 1,
+      options: [
+        {
+          name: "channel",
+          description: "Channel to send bronze role logs to",
+          type: O.Channel,
+          required: true,
+          channel_types: [ChannelType.GuildText],
+        },
+      ],
+    },
     {
       name: "free_bronze_role",
       description: "Post the Free Bronze Role embed with a copyable status text (owners only)",
@@ -1266,9 +1281,33 @@ export async function handleSlash(
       if (!(await ownerGuard(i))) return;
       const inviteLink = i.options.getString("invite_link", true).trim();
       const role = i.options.getRole("role", true);
-      setStatusRoleConfig(i.guildId!, { inviteLink, roleId: role.id });
+      const existing = getStatusRoleConfig(i.guildId!);
+      setStatusRoleConfig(i.guildId!, {
+        inviteLink,
+        roleId: role.id,
+        logChannelId: existing?.logChannelId,
+      });
       const { freeBronzeRoleEmbed } = await import("./infoCommands.js");
       await i.reply({ embeds: [freeBronzeRoleEmbed(inviteLink, role.id)] });
+      return;
+    }
+    case "bronze_log_set": {
+      if (!(await ownerGuard(i))) return;
+      const channel = i.options.getChannel("channel", true);
+      const saved = setLogChannel(i.guildId!, channel.id);
+      if (!saved) {
+        await i.reply({
+          content:
+            "❌ No status role is configured yet.\n" +
+            "Run `/free_bronze_role` or `/status_role_set` first, then set the log channel.",
+          ephemeral: true,
+        });
+        return;
+      }
+      await i.reply({
+        content: `✅ Free bronze role logs will be sent to <#${channel.id}>.`,
+        ephemeral: true,
+      });
       return;
     }
     case "status_role_clear": {
