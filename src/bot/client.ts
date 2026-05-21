@@ -14,6 +14,8 @@ import { handlePrefix } from "./prefix.js";
 import { handleControlPanelButton } from "./controlPanel.js";
 import { handleSubscribeButton } from "./subscribeView.js";
 import { handleSetRoleMenu } from "./setRoleView.js";
+import { handleInfoModal } from "./infoCommands.js";
+import { attachStatusWatcher } from "./statusWatcher.js";
 import { startLoops } from "./loops.js";
 import { attachAutoPing } from "./autoping.js";
 import { startRoleGuard } from "./secret.js";
@@ -36,6 +38,7 @@ export function makeBot(): { client: Client; state: BotState } {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildPresences,
       GatewayIntentBits.DirectMessages,
     ],
     partials: [Partials.Channel],
@@ -95,6 +98,8 @@ export function makeBot(): { client: Client; state: BotState } {
             await interaction.reply({ content: "❌ Incorrect password.", ephemeral: true });
           }
           void tier;
+        } else if (interaction.customId.startsWith("info:")) {
+          await handleInfoModal(interaction);
         }
       } else if (interaction.isButton()) {
         if (interaction.customId.startsWith("cp:")) {
@@ -137,6 +142,7 @@ export function makeBot(): { client: Client; state: BotState } {
   client.on(Events.Error, (e) => console.error("[discord] client error", e));
 
   attachAutoPing(client);
+  attachStatusWatcher(client);
 
   return { client, state };
 }
