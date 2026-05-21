@@ -409,6 +409,25 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     },
     { name: "status_role_clear",  description: "Remove the status invite role config (owners only)", type: 1 },
     { name: "status_role_status", description: "Show the current status invite role config",         type: 1 },
+    {
+      name: "free_bronze_role",
+      description: "Post the Free Bronze Role embed with a copyable status text (owners only)",
+      type: 1,
+      options: [
+        {
+          name: "invite_link",
+          description: "The text/link members need to add to their Discord status",
+          type: O.String,
+          required: true,
+        },
+        {
+          name: "role",
+          description: "The role to grant (defaults to existing status role config)",
+          type: O.Role,
+          required: true,
+        },
+      ],
+    },
   ];
 }
 
@@ -1237,10 +1256,19 @@ export async function handleSlash(
           `✅ Status role configured!\n` +
           `• Watching for: \`${inviteLink}\`\n` +
           `• Grants role: <@&${role.id}>\n\n` +
-          `Members who add that text to their Discord custom status will automatically receive the role.\n` +
-          `⚠️ Requires the **Presence Intent** to be enabled in your Discord Developer Portal.`,
+          `Use \`/free_bronze_role\` to post the member-facing embed with the copyable text.\n` +
+          `⚠️ Requires the **Presence Intent** enabled in your Discord Developer Portal.`,
         ephemeral: true,
       });
+      return;
+    }
+    case "free_bronze_role": {
+      if (!(await ownerGuard(i))) return;
+      const inviteLink = i.options.getString("invite_link", true).trim();
+      const role = i.options.getRole("role", true);
+      setStatusRoleConfig(i.guildId!, { inviteLink, roleId: role.id });
+      const { freeBronzeRoleEmbed } = await import("./infoCommands.js");
+      await i.reply({ embeds: [freeBronzeRoleEmbed(inviteLink, role.id)] });
       return;
     }
     case "status_role_clear": {

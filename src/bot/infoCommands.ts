@@ -295,6 +295,40 @@ export async function handleInfoCommand(
   }
 }
 
+// ─── Free Bronze Role embed ───────────────────────────────────────────────────
+
+export function freeBronzeRoleEmbed(inviteLink: string, roleId: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("🥉 Free Bronze Role")
+    .setColor(0xcd7f32)
+    .setDescription(
+      `Want a **free Bronze role**? Just add our link to your Discord status and the bot will automatically give you <@&${roleId}>!`,
+    )
+    .addFields(
+      {
+        name: "📋 Step 1 — Copy this text",
+        value: `\`\`\`${inviteLink}\`\`\``,
+      },
+      {
+        name: "📱 Step 2 — Add it to your Discord status",
+        value:
+          "1. Click your **profile picture** (bottom-left)\n" +
+          "2. Click **Set a custom status**\n" +
+          "3. Paste the text and save",
+      },
+      {
+        name: "✅ Step 3 — Get your role",
+        value: `The bot will detect your status and give you <@&${roleId}> automatically within a few minutes.`,
+      },
+      {
+        name: "⚠️ Keep it in your status",
+        value: "If you remove the text from your status, the role will be removed too.",
+      },
+    )
+    .setFooter({ text: "Memberk — Free Bronze Role" })
+    .setTimestamp();
+}
+
 // ─── Modal submit handlers ────────────────────────────────────────────────────
 
 export async function handleInfoModal(i: ModalSubmitInteraction): Promise<void> {
