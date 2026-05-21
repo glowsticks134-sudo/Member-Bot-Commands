@@ -97,27 +97,29 @@ export function paymentMethodsEmbed(): EmbedBuilder {
     .setDescription("We accept the following payment methods. Contact staff to purchase.")
     .addFields(
       {
-        name: "💰 Cryptocurrency",
+        name: "🎮 Robux",
         value:
-          "• **LTC** — Litecoin *(preferred)*\n" +
-          "• **BTC** — Bitcoin\n" +
-          "• **ETH** — Ethereum\n" +
-          "• **SOL** — Solana\n" +
-          "• **USDT** — Tether (TRC-20 or ERC-20)",
+          "Pay via **Roblox Robux** through a gamepass or group funds.\n" +
+          "DM staff for the gamepass link.",
       },
       {
-        name: "💸 Other",
+        name: "✨ Discord Nitro",
         value:
-          "• **CashApp** — $tag *(Friends & Family only)*\n" +
-          "• **PayPal** — F&F only, no goods & services\n" +
-          "• **Venmo** — on request",
+          "Gift us **Discord Nitro** or **Nitro Basic** as payment.\n" +
+          "DM staff for the gifting instructions.",
+      },
+      {
+        name: "💵 CashApp",
+        value:
+          "Send via **CashApp** — DM staff for the $cashtag.\n" +
+          "⚠️ Friends & Family only — no payment requests.",
       },
       {
         name: "⚠️ Important",
         value:
-          "• **No chargebacks.** All sales are final.\n" +
-          "• Payment must be received before service delivery.\n" +
-          "• DM staff for wallet addresses / payment tags.",
+          "• **All sales are final.** No refunds or chargebacks.\n" +
+          "• Payment must be received before service is delivered.\n" +
+          "• DM staff to initiate a purchase.",
       },
     )
     .setFooter({ text: "Memberk — Contact staff to pay" })
