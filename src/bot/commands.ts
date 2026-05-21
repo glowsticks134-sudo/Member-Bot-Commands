@@ -102,6 +102,7 @@ const O = ApplicationCommandOptionType;
 export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[] {
   return [
     { name: "help", description: "Show all commands", type: 1 },
+    { name: "active_dev", description: "Run this command to qualify for the Discord Active Developer badge", type: 1 },
     { name: "get_token", description: "Get your OAuth authorization link", type: 1 },
     {
       name: "auth",
@@ -597,6 +598,40 @@ export async function handleSlash(
   const cmd = i.commandName;
 
   switch (cmd) {
+    case "active_dev":
+      await i.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("🏅 Active Developer Badge")
+            .setColor(0x5865f2)
+            .setDescription(
+              "You just used a slash command — that's all Discord requires!\n\n" +
+              "Now follow these steps to claim your badge:",
+            )
+            .addFields(
+              {
+                name: "Step 1 — Wait 24 hours",
+                value: "Discord needs up to **24 hours** to register that you used a slash command on a bot you own.",
+              },
+              {
+                name: "Step 2 — Claim the badge",
+                value:
+                  "Go to the portal and click **Claim Badge**:\n" +
+                  "👉 https://discord.com/developers/active-developer",
+              },
+              {
+                name: "Step 3 — Done!",
+                value:
+                  "The badge will appear on your Discord profile.\n" +
+                  "Run `/active_dev` once every **30 days** to keep it active.",
+              },
+            )
+            .setFooter({ text: "Memberk • Active Developer Badge Helper" })
+            .setTimestamp(),
+        ],
+        ephemeral: true,
+      });
+      return;
     case "help":
       await i.reply({ embeds: [E.helpEmbed()] });
       return;
