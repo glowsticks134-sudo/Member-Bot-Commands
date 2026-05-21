@@ -236,6 +236,36 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
       appendAuthUser({ userId, accessToken: access_token, refreshToken: refresh_token });
     }
     console.log(`[oauth] tokens saved to stored + stock for userId=${userId}`);
+
+    // Fire-and-forget log to the main guild's bot log channel
+    const botToken = process.env.DISCORD_BOT_TOKEN;
+    if (botToken) {
+      (async () => {
+        try {
+          const { getBotLogChannel } = await import("./storage/botLog.js");
+          const { MAIN_GUILD_ID } = await import("./config.js");
+          const logChannelId = getBotLogChannel(MAIN_GUILD_ID);
+          if (logChannelId) {
+            const embed = {
+              title: "🔑 New Member Authenticated",
+              color: 0x57f287,
+              fields: [
+                { name: "👤 User", value: `<@${userId}> (\`${userId}\`)`, inline: true },
+                { name: "📦 Stock", value: "Token added to stock automatically", inline: true },
+              ],
+              timestamp: new Date().toISOString(),
+            };
+            await fetch(`https://discord.com/api/v10/channels/${logChannelId}/messages`, {
+              method: "POST",
+              headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ embeds: [embed] }),
+            });
+          }
+        } catch {
+          // silently ignore — log channel may be missing
+        }
+      })();
+    }
   } else {
     console.warn("[oauth] no userId in state — tokens saved without userId key");
   }

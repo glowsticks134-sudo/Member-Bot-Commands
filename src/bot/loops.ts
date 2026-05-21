@@ -1,5 +1,6 @@
 import { EmbedBuilder, type Client, type TextChannel } from "discord.js";
 import { COLOR, MAIN_GUILD_ID } from "../config.js";
+import { sendBotLog } from "./logger.js";
 import {
   readDailyRestock,
   readScheduledRestocks,
@@ -45,6 +46,18 @@ async function autoLeaveTick(client: Client, state: BotState): Promise<void> {
       try {
         await g.leave();
         state.serverJoinTimes.delete(g.id);
+        await sendBotLog(
+          client,
+          MAIN_GUILD_ID,
+          new EmbedBuilder()
+            .setTitle("👋 Auto-Left Server")
+            .setColor(COLOR.yellow)
+            .addFields(
+              { name: "🏠 Server", value: `${g.name} (\`${g.id}\`)`, inline: true },
+              { name: "📅 Days in Server", value: String(days), inline: true },
+            )
+            .setTimestamp(),
+        );
       } catch (e) {
         console.error("[auto-leave] failed to leave", g.id, e);
       }

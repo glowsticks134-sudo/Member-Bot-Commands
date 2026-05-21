@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ApplicationCommandOptionType,
   ChannelType,
+  EmbedBuilder,
   ModalBuilder,
   PermissionFlagsBits,
   TextInputBuilder,
@@ -18,6 +19,7 @@ import * as crypto from "node:crypto";
 import {
   BOT_TOKEN,
   CLIENT_ID,
+  COLOR,
   MAIN_GUILD_ID,
   MAX_ROLES_PER_GUILD,
   OWNER_PASSWORD,
@@ -52,6 +54,8 @@ import {
   setStatusRoleConfig,
 } from "../storage/statusRoles.js";
 import { handleInfoCommand } from "./infoCommands.js";
+import { sendBotLog } from "./logger.js";
+import { getBotLogChannel, setBotLogChannel, clearBotLogChannel } from "../storage/botLog.js";
 import { exchangeCode } from "../oauth.js";
 import {
   saveUserAuth,
@@ -411,6 +415,21 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     { name: "status_role_clear",  description: "Remove the status invite role config (owners only)", type: 1 },
     { name: "status_role_status", description: "Show the current status invite role config",         type: 1 },
     {
+      name: "set_log_channel",
+      description: "Set the channel where all bot activity logs are sent (owners only)",
+      type: 1,
+      options: [
+        {
+          name: "channel",
+          description: "Channel to send all bot logs to",
+          type: O.Channel,
+          required: true,
+          channel_types: [ChannelType.GuildText],
+        },
+      ],
+    },
+    { name: "clear_log_channel", description: "Remove the bot log channel (owners only)", type: 1 },
+    {
       name: "bronze_log_set",
       description: "Set the channel where free bronze role grants/removals are logged (owners only)",
       type: 1,
@@ -651,6 +670,14 @@ export async function handleSlash(
       const count = i.options.getInteger("count") ?? undefined;
       const e = await doRestockFromStored(count);
       await i.followUp({ embeds: [e], ephemeral: true });
+      await sendBotLog(client, i.guildId!, new EmbedBuilder()
+        .setTitle("📦 Restock Completed")
+        .setColor(COLOR.green)
+        .addFields(
+          { name: "👤 By", value: `<@${i.user.id}>`, inline: true },
+          { name: "🔢 Count", value: count != null ? String(count) : "all", inline: true },
+        )
+        .setTimestamp());
       return;
     }
     case "deploy": {
@@ -726,12 +753,25 @@ export async function handleSlash(
         }
       });
       if (e) await i.editReply({ content: "", embeds: [e] });
+      await sendBotLog(client, i.guildId!, new EmbedBuilder()
+        .setTitle("🚀 Mass Join Completed")
+        .setColor(COLOR.blurple)
+        .addFields(
+          { name: "👤 By", value: `<@${i.user.id}>`, inline: true },
+          { name: "🏠 Server", value: `\`${sid}\``, inline: true },
+        )
+        .setTimestamp());
       return;
     }
     case "clear_stock":
       if (!(await ownerGuard(i))) return;
       clearStock();
       await i.reply({ content: "🧹 Stock cleared.", ephemeral: true });
+      await sendBotLog(client, i.guildId!, new EmbedBuilder()
+        .setTitle("🧹 Stock Cleared")
+        .setColor(COLOR.red)
+        .addFields({ name: "👤 By", value: `<@${i.user.id}>`, inline: true })
+        .setTimestamp());
       return;
     case "cleanup_servers": {
       if (!(await ownerGuard(i))) return;
@@ -1096,6 +1136,16 @@ export async function handleSlash(
           : `ℹ️ <@${uid}> is already blacklisted.`,
         ephemeral: true,
       });
+      if (added) {
+        await sendBotLog(client, i.guildId!, new EmbedBuilder()
+          .setTitle("⛔ User Blacklisted")
+          .setColor(COLOR.red)
+          .addFields(
+            { name: "🎯 Target", value: `<@${uid}> (\`${uid}\`)`, inline: true },
+            { name: "👤 By", value: `<@${i.user.id}>`, inline: true },
+          )
+          .setTimestamp());
+      }
       return;
     }
     case "unblacklist": {
@@ -1108,6 +1158,16 @@ export async function handleSlash(
           : `ℹ️ <@${uid}> was not on the blacklist.`,
         ephemeral: true,
       });
+      if (removed) {
+        await sendBotLog(client, i.guildId!, new EmbedBuilder()
+          .setTitle("✅ User Unblacklisted")
+          .setColor(COLOR.green)
+          .addFields(
+            { name: "🎯 Target", value: `<@${uid}> (\`${uid}\`)`, inline: true },
+            { name: "👤 By", value: `<@${i.user.id}>`, inline: true },
+          )
+          .setTimestamp());
+      }
       return;
     }
     case "blacklist_list": {
@@ -1146,6 +1206,16 @@ export async function handleSlash(
           : `ℹ️ Server \`${sid}\` was already allowed.\n${note}`,
         ephemeral: true,
       });
+      if (added) {
+        await sendBotLog(client, i.guildId!, new EmbedBuilder()
+          .setTitle("✅ Server Enabled")
+          .setColor(COLOR.green)
+          .addFields(
+            { name: "🏠 Server ID", value: `\`${sid}\``, inline: true },
+            { name: "👤 By", value: `<@${i.user.id}>`, inline: true },
+          )
+          .setTimestamp());
+      }
       return;
     }
     case "disable_server": {
@@ -1162,6 +1232,16 @@ export async function handleSlash(
           : `ℹ️ Server \`${sid}\` was not in the allowed list.`,
         ephemeral: true,
       });
+      if (removed) {
+        await sendBotLog(client, i.guildId!, new EmbedBuilder()
+          .setTitle("🚫 Server Disabled")
+          .setColor(COLOR.red)
+          .addFields(
+            { name: "🏠 Server ID", value: `\`${sid}\``, inline: true },
+            { name: "👤 By", value: `<@${i.user.id}>`, inline: true },
+          )
+          .setTimestamp());
+      }
       return;
     }
     case "list_allowed_servers": {
@@ -1289,6 +1369,35 @@ export async function handleSlash(
       });
       const { freeBronzeRoleEmbed } = await import("./infoCommands.js");
       await i.reply({ embeds: [freeBronzeRoleEmbed(inviteLink, role.id)] });
+      return;
+    }
+    case "set_log_channel": {
+      if (!(await ownerGuard(i))) return;
+      const channel = i.options.getChannel("channel", true);
+      setBotLogChannel(i.guildId!, channel.id);
+      await i.reply({
+        content:
+          `✅ Bot logs will now be sent to <#${channel.id}>.\n\n` +
+          `**Logged events:**\n` +
+          `• 🔑 Member OAuth token saved\n` +
+          `• 📦 Restock completed\n` +
+          `• 🚀 Mass join (\`/djoin\`) completed\n` +
+          `• 🧹 Stock cleared\n` +
+          `• ⛔ User blacklisted / unblacklisted\n` +
+          `• ✅ Server enabled / disabled\n` +
+          `• 👋 Bot auto-left a server\n` +
+          `• 🥉 Free bronze role granted / removed`,
+        ephemeral: true,
+      });
+      return;
+    }
+    case "clear_log_channel": {
+      if (!(await ownerGuard(i))) return;
+      const cleared = clearBotLogChannel(i.guildId!);
+      await i.reply({
+        content: cleared ? "✅ Bot log channel removed." : "ℹ️ No log channel was set.",
+        ephemeral: true,
+      });
       return;
     }
     case "bronze_log_set": {
