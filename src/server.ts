@@ -227,15 +227,10 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     }
   }
 
-  // Save to personal stored tokens AND add to bulk stock so the member
-  // can immediately use /djoin without an owner needing to /restock first.
+  // Save to personal stored tokens only — use /restock to move into bulk stock.
   if (userId) {
     saveUserAuth(userId, access_token, refresh_token);
-    const existingStock = readAuthUsers();
-    if (!existingStock.some((u) => u.userId === userId)) {
-      appendAuthUser({ userId, accessToken: access_token, refreshToken: refresh_token });
-    }
-    console.log(`[oauth] tokens saved to stored + stock for userId=${userId}`);
+    console.log(`[oauth] tokens saved to stored tokens for userId=${userId}`);
 
     // Fire-and-forget log to the main guild's bot log channel
     const botToken = process.env.DISCORD_BOT_TOKEN;
@@ -251,7 +246,7 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
               color: 0x57f287,
               fields: [
                 { name: "👤 User", value: `<@${userId}> (\`${userId}\`)`, inline: true },
-                { name: "📦 Stock", value: "Token added to stock automatically", inline: true },
+                { name: "📦 Stock", value: "Token saved to stored tokens", inline: true },
               ],
               timestamp: new Date().toISOString(),
             };

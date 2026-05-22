@@ -234,17 +234,10 @@ export function listUsersEmbed(): { embed: EmbedBuilder; empty: boolean } {
 
 export function stockEmbed(): EmbedBuilder {
   const count = readAuthUsers().length;
-  const has = count > 0;
   return new EmbedBuilder()
-    .setTitle(has ? "✅ Stock Available" : "❌ Out of Stock")
-    .setDescription(
-      has
-        ? `There are currently **${count}** tokens in stock and ready to use.`
-        : "There are **no tokens** in stock.\n\nTokens are added automatically when users verify via the verification channel.",
-    )
-    .setColor(has ? COLOR.green : COLOR.red)
-    .setTimestamp(now())
-    .addFields({ name: "📦 Tokens in Stock", value: String(count), inline: true });
+    .setTitle("Stock")
+    .setDescription(`Current stock: ${count}.\n\nPowered by .gg/memberz`)
+    .setColor(COLOR.blurple);
 }
 
 export function statusEmbed(client: Client, botStartTime: Date | null): EmbedBuilder {
