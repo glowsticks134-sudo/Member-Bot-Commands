@@ -342,7 +342,7 @@ ${row("BOT_TOKEN", botStatus.tokenConfigured)}
 ${row("CLIENT_ID", botStatus.clientIdConfigured)}
 ${row("CLIENT_SECRET", botStatus.clientSecretConfigured)}
 </table>
-${!botStatus.tokenConfigured ? `<p class="hint">⚠️ <strong>DISCORD_BOT_TOKEN is not set.</strong><br>Add it in your Railway project → <em>Variables</em> tab.</p>` : ""}
+${!botStatus.tokenConfigured ? `<p class="hint">⚠️ <strong>DISCORD_BOT_TOKEN is not set.</strong><br>Add it in the <em>Secrets</em> tab of your Replit project.</p>` : ""}
 ${botStatus.tokenConfigured && !botStatus.connected ? `<p class="hint">⚠️ Token is set but bot is not connected. It may be wrong or revoked.</p>` : ""}
 ${botStatus.connected ? `<p class="hint">✅ Everything looks good. Bot is online as <strong>${botStatus.tag}</strong>.</p>` : ""}
 </div></body></html>`;
