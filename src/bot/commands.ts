@@ -198,6 +198,11 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
           choices: [
             { name: "djoin", value: "djoin" },
             { name: "auth", value: "auth" },
+            { name: "farm", value: "farm" },
+            { name: "farmlog", value: "farmlog" },
+            { name: "stock", value: "stock" },
+            { name: "restock", value: "restock" },
+            { name: "addbot", value: "addbot" },
           ],
         },
         {
@@ -222,6 +227,11 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
           choices: [
             { name: "djoin", value: "djoin" },
             { name: "auth", value: "auth" },
+            { name: "farm", value: "farm" },
+            { name: "farmlog", value: "farmlog" },
+            { name: "stock", value: "stock" },
+            { name: "restock", value: "restock" },
+            { name: "addbot", value: "addbot" },
           ],
         },
       ],
@@ -887,7 +897,7 @@ export async function handleSlash(
       return;
     case "setchannel": {
       if (!(await ownerGuard(i))) return;
-      const type = i.options.getString("type", true) as "djoin" | "auth";
+      const type = i.options.getString("type", true) as import("../storage/locks.js").LockType;
       const channel = i.options.getChannel("channel", true);
       setChannelLock(i.guildId!, type, channel.id);
       await i.reply({
@@ -898,7 +908,7 @@ export async function handleSlash(
     }
     case "clearchannel": {
       if (!(await ownerGuard(i))) return;
-      const type = i.options.getString("type", true) as "djoin" | "auth";
+      const type = i.options.getString("type", true) as import("../storage/locks.js").LockType;
       const cleared = clearChannelLock(i.guildId!, type);
       await i.reply({
         content: cleared ? "✅ Channel lock cleared." : "ℹ️ That type was not locked.",

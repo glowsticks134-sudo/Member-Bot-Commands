@@ -9,6 +9,9 @@ import {
 } from "../storage/schedules.js";
 import { doRestock } from "./restock.js";
 import { stockEmbed, statusEmbed } from "./embeds.js";
+import { readChannelLocks } from "../storage/locks.js";
+import { readAuthUsers } from "../storage/tokens.js";
+import { getRestockTemplate, renderRestockTemplate } from "../storage/restockTemplate.js";
 import type { BotState } from "./client.js";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -76,15 +79,18 @@ async function dailyRestockTick(client: Client): Promise<void> {
 
   daily.lastRanDate = today;
   writeDailyRestock(daily);
-  const restockEmbed = await doRestock(daily.rawTokens);
-  const notify = new EmbedBuilder()
-    .setTitle("📅 Daily Restock Ran")
-    .setDescription(`Daily restock at **${daily.time} MST** has completed.`)
-    .setColor(COLOR.green)
-    .setTimestamp(now);
+  const restockResult = await doRestock(daily.rawTokens);
   try {
     const ch = (await client.channels.fetch(daily.channelId)) as TextChannel | null;
-    if (ch && ch.isTextBased()) await ch.send({ embeds: [notify, restockEmbed] });
+    if (!ch || !ch.isTextBased()) return;
+    const guildId = (ch as TextChannel).guild?.id ?? MAIN_GUILD_ID;
+    const locks = readChannelLocks()[guildId] ?? {};
+    const farmId = (locks as Record<string, string>).farm ?? null;
+    const addBotId = (locks as Record<string, string>).addbot ?? null;
+    const stockCount = readAuthUsers().length;
+    const template = getRestockTemplate(guildId);
+    const rendered = renderRestockTemplate(template, stockCount, farmId, addBotId);
+    await ch.send({ content: rendered, embeds: [restockResult] });
   } catch (e) {
     console.error("[daily-restock] could not notify channel", e);
   }
@@ -98,17 +104,18 @@ async function scheduledRestockTick(client: Client): Promise<void> {
   if (due.length === 0) return;
   writeScheduledRestocks(pending.filter((s) => s.runAt > nowMs));
   for (const s of due) {
-    const restockEmbed = await doRestock(s.rawTokens);
-    const notify = new EmbedBuilder()
-      .setTitle("📅 Scheduled Restock Ran")
-      .setDescription(
-        `Schedule \`${s.id}\` (created by <@${s.createdBy}>) has completed.`,
-      )
-      .setColor(COLOR.green)
-      .setTimestamp(new Date());
+    const restockResult = await doRestock(s.rawTokens);
     try {
       const ch = (await client.channels.fetch(s.channelId)) as TextChannel | null;
-      if (ch && ch.isTextBased()) await ch.send({ embeds: [notify, restockEmbed] });
+      if (!ch || !ch.isTextBased()) continue;
+      const guildId = (ch as TextChannel).guild?.id ?? MAIN_GUILD_ID;
+      const locks = readChannelLocks()[guildId] ?? {};
+      const farmId = (locks as Record<string, string>).farm ?? null;
+      const addBotId = (locks as Record<string, string>).addbot ?? null;
+      const stockCount = readAuthUsers().length;
+      const template = getRestockTemplate(guildId);
+      const rendered = renderRestockTemplate(template, stockCount, farmId, addBotId);
+      await ch.send({ content: rendered, embeds: [restockResult] });
     } catch (e) {
       console.error("[scheduled-restock] could not notify", e);
     }

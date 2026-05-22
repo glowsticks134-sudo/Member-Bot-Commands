@@ -1,9 +1,9 @@
 import { CHANNEL_LOCKS_FILE } from "../config.js";
 import { readJson, writeJson } from "./files.js";
 
-export type LockType = "djoin" | "auth";
+export type LockType = "djoin" | "auth" | "farm" | "farmlog" | "stock" | "restock" | "addbot";
 
-// { [guildId]: { djoin?: channelId, auth?: channelId } }
+// { [guildId]: { djoin?: channelId, auth?: channelId, farm?: channelId, ... } }
 export type ChannelLocks = Record<string, Partial<Record<LockType, string>>>;
 
 export function readChannelLocks(): ChannelLocks {
