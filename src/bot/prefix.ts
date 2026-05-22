@@ -267,8 +267,8 @@ export async function handlePrefix(
   }
 
   try {
-    if (cmd === "help") {
-      await message.reply({ embeds: [E.helpEmbed()] });
+    if (cmd === "cmds") {
+      await message.reply({ embeds: [E.cmdsEmbed()] });
 
     } else if (cmd === "auth") {
       const lock = checkChannelLock(message.guild.id, "auth", message.channel.id);

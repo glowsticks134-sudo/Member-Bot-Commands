@@ -29,116 +29,102 @@ function now(): Date {
 
 // ─── Help / OAuth ─────────────────────────────────────────────────────────────
 
-export function helpEmbed(): EmbedBuilder {
+export function cmdsEmbed(): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle("🤖 Memberk — All Commands")
+    .setTitle("👑 Memberk — Owner Commands")
     .setColor(COLOR.blurple)
     .setTimestamp(now())
     .addFields(
       {
-        name: "🔐 Authentication",
+        name: "📦 Stock & Queue",
         value:
-          "`/auth code:CODE` — Manually authenticate with a code\n" +
-          "`/check_tokens` — Validate all stored tokens (owners only)",
+          "`!stock` — post a live stock embed (auto-updates)\n" +
+          "`!checkserver <server_id>` — inspect a server / stock for it\n" +
+          "`!checkqueue` — show running + queued djoin jobs\n" +
+          "`!djoin status` — show djoin worker status\n" +
+          "`!djoin <server_id> [amount]` — add stock accounts to a server\n" +
+          "Cooldown: **180s** per user and per server",
       },
       {
-        name: "🚀 Mass Joining",
+        name: "🔄 Stock Management",
         value:
-          "`/djoin server_id:ID` — Add all stock users to a server (owners only)\n" +
-          "`/servers` — List all servers the bot is in\n" +
-          "`/server_age [server_id]` — Check when a server was joined\n" +
-          "`/cleanup_servers` — Leave all non-main servers (owners only)",
+          "`!restock [count]` — move stored tokens into bulk stock\n" +
+          "`!clear_stock` — wipe all bulk stock\n" +
+          "`!check_tokens` — validate all stored tokens\n" +
+          "`!count` — show stored token / stock counts\n" +
+          "`!list_users` — list all authenticated users",
       },
       {
-        name: "📦 Stock & Users",
+        name: "📋 Restock Template",
         value:
-          "`/stock` — Show current bulk stock count\n" +
-          "`/count` — Show stored token count\n" +
-          "`/list_users` — List all authenticated users\n" +
-          "`/restock [count]` — Move stored tokens into bulk stock (owners only)\n" +
-          "`/clear_stock` — Wipe all bulk stock (owners only)",
+          "`!setrestock <message>` — customize this bot's restock broadcast\n" +
+          "`!showrestock` — preview the current template\n" +
+          "`!resetrestock` — restore the default template\n" +
+          "Placeholders: `{count}`, `{farm}`, `{addbot}`",
       },
       {
         name: "📅 Schedules",
         value:
-          "`/schedule_restock time:1h` — Schedule a one-off restock (owners only)\n" +
-          "`/list_schedules` — View pending schedules (owners only)\n" +
-          "`/cancel_schedule id:ID` — Cancel a schedule (owners only)\n" +
-          "`/set_daily_restock time:14:00` — Set a daily restock (owners only)\n" +
-          "`/cancel_daily_restock` — Cancel the daily restock (owners only)\n" +
-          "`/daily_restock_status` — Show daily restock config (owners only)",
+          "`!list_schedules` — view pending scheduled restocks\n" +
+          "`!cancel_daily_restock` — cancel the daily restock\n" +
+          "`!daily_restock_status` — show daily restock config\n" +
+          "_Use `/schedule_restock` and `/set_daily_restock` to create new schedules_",
       },
       {
-        name: "👑 Owner Management",
+        name: "⚙️ Settings",
         value:
-          "`/owners` — List all owners\n" +
-          "`/control_panel` — Open the interactive control panel\n" +
-          "`/setowner_role role:@Role` — Grant owner access by role\n" +
-          "`/removeowner_role role:@Role` — Revoke an owner role\n" +
-          "`/listowner_roles` — List all owner roles\n" +
-          "`/restart` — Restart the bot process\n" +
-          "`/deploy` — Trigger a Railway redeploy\n" +
-          "`/dashboard` — Get the private dashboard link",
+          "`!settings` — unified view of all settings\n" +
+          "`!tiers` — show current tier mapping\n" +
+          "`!cleartiers` — remove all tier roles\n" +
+          "`!listchannels` — show channel locks\n" +
+          "`!listroles` — show role limits\n" +
+          "`!listowner_roles` — show owner roles\n" +
+          "Allowed limits: **2, 4, 5, 10, 15, 20, 30** — Default (no role): **2**",
       },
       {
-        name: "🎭 Role Limits & 📌 Channel Locks",
+        name: "👑 Management",
         value:
-          "`/setrole role:@Role limit:N` — Set per-role djoin limit\n" +
-          "`/removerole role:@Role` — Remove a role limit\n" +
-          "`/listroles` — List all role limits\n" +
-          "`/setchannel type:djoin channel:#ch` — Lock a command to a channel\n" +
-          "`/clearchannel type:djoin` — Remove a channel lock\n" +
-          "`/listchannels` — Show all channel locks",
+          "`!owners` — list all owners\n" +
+          "`!status` — bot status & uptime\n" +
+          "`!servers` — list servers the bot is in\n" +
+          "`!server_age [ID]` — check when a server was joined\n" +
+          "`!dashboard` — get the private dashboard link\n" +
+          "`!control_panel` — open interactive control panel\n" +
+          "`!restart` — restart the bot process\n" +
+          "`!deploy` — trigger a redeploy\n" +
+          "`!cleanup_servers` — leave all non-main servers",
       },
       {
-        name: "📺 Live Embeds",
+        name: "📣 Announcements",
         value:
-          "`/live_stock` — Post a live-updating stock embed (owners only)\n" +
-          "`/live_status` — Post a live-updating status embed (owners only)",
+          "`!announce <message>` — DM all subscribers\n" +
+          "`!setup_subscribe` — post the opt-in subscribe embed\n" +
+          "`!subscribers` — count subscribers in this server",
       },
       {
-        name: "🔔 Auto-ping",
+        name: "🔧 Setup (slash commands — needs Discord UI)",
         value:
-          "`/autoping_set channel:#ch` — Ping new members in a channel\n" +
-          "`/autoping_clear` — Disable auto-ping\n" +
-          "`/autoping_status` — Show current auto-ping config\n" +
-          "`/autoping_test` — Send a test ping for yourself",
-      },
-      {
-        name: "📣 Gecko Announcements",
-        value:
-          "`/setup_subscribe` — Post the opt-in subscribe embed\n" +
-          "`/announce message:...` — DM all subscribers\n" +
-          "`/subscribers` — Count subscribers in this server",
-      },
-      {
-        name: "✅ Verification (Bot 2)",
-        value:
-          "`/send_verify [channel] [image]` — Post the verification embed (owners only)\n" +
-          "_Run this command from Bot 2 in your verify channel._",
-      },
-      {
-        name: "🔧 Utility",
-        value:
-          "`/invite` — Bot 1 invite link\n" +
-          "`/add` — Add Bot 3 to a server\n" +
-          "`/status` — Bot status & uptime\n" +
-          "`/help` — Show this message",
-      },
-      {
-        name: "🚫 Super-owner Only",
-        value:
-          "`/blacklist user_id:ID` · `/unblacklist` · `/blacklist_list`\n" +
-          "`/enable_server` · `/disable_server` · `/list_allowed_servers`",
+          "`/setrole` · `/removerole` — role djoin limits\n" +
+          "`/setowner_role` · `/removeowner_role` — owner role access\n" +
+          "`/setchannel` · `/clearchannel` — channel locks (farm, addbot, stock…)\n" +
+          "`/schedule_restock` · `/set_daily_restock` — scheduled restocks\n" +
+          "`/cancel_schedule` — cancel a scheduled restock\n" +
+          "`/send_verify` — post verification embed (Bot 2)\n" +
+          "`/autoping_set` · `/autoping_clear` — auto-ping new members",
       },
       {
         name: "⚠️ Notes",
         value:
+          "• All `!` commands are owner-only\n" +
+          "• `/` commands are public — anyone can use them\n" +
           "• Bot auto-leaves servers after 14 days\n" +
-          "• Prefix `!` versions work for most commands\n" +
-          "• Owner-only commands require owner role or hardcoded owner ID",
+          "• Owner access = server owner, hardcoded owner ID, or owner role",
       },
     );
+}
+
+export function helpEmbed(): EmbedBuilder {
+  return cmdsEmbed();
 }
 
 export function verifyEmbed(imageUrl?: string | null): {

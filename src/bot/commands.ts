@@ -101,7 +101,6 @@ const O = ApplicationCommandOptionType;
 
 export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[] {
   return [
-    { name: "help", description: "Show all commands", type: 1 },
     { name: "active_dev", description: "Run this command to qualify for the Discord Active Developer badge", type: 1 },
     {
       name: "auth",
@@ -111,7 +110,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
         { name: "code", description: "OAuth code from auth link", type: O.String, required: true },
       ],
     },
-    { name: "check_tokens", description: "Validate all stored tokens (owners only)", type: 1 },
     { name: "count", description: "Stored token count", type: 1 },
     { name: "list_users", description: "List authenticated users", type: 1 },
     { name: "stock", description: "Show current token stock", type: 1 },
@@ -127,32 +125,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     },
     { name: "invite", description: "Bot invite link", type: 1 },
     { name: "add", description: "Add bot embed", type: 1 },
-    {
-      name: "djoin",
-      description: "Mass-join all stored users into a server (owners only)",
-      type: 1,
-      options: [
-        { name: "server_id", description: "Target server ID", type: O.String, required: true },
-      ],
-    },
-    {
-      name: "restock",
-      description: "Push authenticated users from stored tokens into bulk stock (owners only)",
-      type: 1,
-      options: [
-        {
-          name: "count",
-          description: "How many stored tokens to move into stock (default: all)",
-          type: O.Integer,
-          required: false,
-          min_value: 1,
-        },
-      ],
-    },
-    { name: "deploy", description: "Trigger a Railway redeploy (owners only)", type: 1 },
-    { name: "clear_stock", description: "Remove all stored tokens (owners only)", type: 1 },
-    { name: "cleanup_servers", description: "Leave all other servers (owners only)", type: 1 },
-    { name: "control_panel", description: "Open the interactive owner control panel", type: 1 },
     { name: "owners", description: "List all owners", type: 1 },
     {
       name: "setowner_role",
@@ -171,8 +143,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       ],
     },
     { name: "listowner_roles", description: "List all owner roles", type: 1 },
-    { name: "restart", description: "Restart bot (owners only)", type: 1 },
-    { name: "dashboard", description: "Get private dashboard link (owners only)", type: 1 },
     {
       name: "setrole",
       description: "Set a role djoin limit using preset tiers (owners only)",
@@ -266,18 +236,7 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     },
     { name: "cancel_daily_restock", description: "Cancel daily restock (owners only)", type: 1 },
     { name: "daily_restock_status", description: "Show daily restock config (owners only)", type: 1 },
-    { name: "setup_subscribe", description: "Post the opt-in subscribe embed (owners only)", type: 1 },
-    {
-      name: "announce",
-      description: "DM all subscribers an announcement (owners only)",
-      type: 1,
-      options: [
-        { name: "message", description: "Announcement message", type: O.String, required: true },
-      ],
-    },
     { name: "subscribers", description: "Count subscribers in this server", type: 1 },
-    { name: "live_stock", description: "Post a live-updating stock embed (owners only)", type: 1 },
-    { name: "live_status", description: "Post a live-updating status embed (owners only)", type: 1 },
     {
       name: "send_verify",
       description: "Post a public verification embed using the verification bot (owners only)",
@@ -640,9 +599,6 @@ export async function handleSlash(
         ],
         ephemeral: true,
       });
-      return;
-    case "help":
-      await i.reply({ embeds: [E.helpEmbed()] });
       return;
     case "auth": {
       const code = i.options.getString("code", true);
