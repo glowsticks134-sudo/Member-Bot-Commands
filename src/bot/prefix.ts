@@ -749,7 +749,13 @@ export async function handlePrefix(
         }
         const loading = await message.reply("🔄 Restocking from stored tokens…");
         const e = await doRestockFromStored(count);
-        await loading.edit({ content: "", embeds: [e] });
+        const stockCount = readAuthUsers().length;
+        const locks = readChannelLocks()[message.guild.id] ?? {};
+        const farmId = (locks as Record<string, string>)["farm"] ?? null;
+        const addBotId = (locks as Record<string, string>)["addbot"] ?? null;
+        const template = getRestockTemplate(message.guild.id);
+        const rendered = renderRestockTemplate(template, stockCount, farmId, addBotId);
+        await loading.edit({ content: rendered, embeds: [e] });
 
       } else if (cmd === "deploy") {
         const { RAILWAY_API_TOKEN, RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID } = await import("../config.js");
