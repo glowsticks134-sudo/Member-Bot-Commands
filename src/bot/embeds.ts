@@ -12,7 +12,7 @@ import {
   HARDCODED_OWNERS,
   MAX_ROLES_PER_GUILD,
   SUPER_OWNER_ID,
-  getPublicDomain,
+  getRedirectUri,
 } from "../config.js";
 import { readChannelLocks } from "../storage/locks.js";
 import { getGuildOwnerRoles } from "../storage/owners.js";
@@ -145,8 +145,14 @@ export function verifyEmbed(imageUrl?: string | null): {
   embed: EmbedBuilder;
   components: ActionRowBuilder<ButtonBuilder>[];
 } {
-  const domain = getPublicDomain() ?? `http://localhost:${process.env.PORT ?? 5000}`;
-  const url = `${domain}/verify`;
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: "code",
+    redirect_uri: getRedirectUri(),
+    scope: "identify guilds.join",
+    prompt: "consent",
+  });
+  const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
   const embed = new EmbedBuilder()
     .setDescription(
       "✅ **Memberk Official Verification** ✅\n\n" +
