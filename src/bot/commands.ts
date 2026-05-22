@@ -103,7 +103,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
   return [
     { name: "help", description: "Show all commands", type: 1 },
     { name: "active_dev", description: "Run this command to qualify for the Discord Active Developer badge", type: 1 },
-    { name: "get_token", description: "Get your OAuth authorization link", type: 1 },
     {
       name: "auth",
       description: "Manually authenticate with an OAuth code",
@@ -635,9 +634,6 @@ export async function handleSlash(
     case "help":
       await i.reply({ embeds: [E.helpEmbed()] });
       return;
-    case "get_token":
-      await i.reply({ embeds: [E.getTokenEmbed(i.user.id)], ephemeral: true });
-      return;
     case "auth": {
       const code = i.options.getString("code", true);
       await i.deferReply({ ephemeral: true });
@@ -646,7 +642,7 @@ export async function handleSlash(
         await i.editReply({
           content:
             `❌ Auth failed: ${res.error}\n\n**Common causes:**\n` +
-            `• Code expired — get a fresh one with \`/get_token\`\n` +
+            `• Code expired — use the Verify button to get a fresh link\n` +
             `• Code already used (each code works once only)\n` +
             `• Redirect URI mismatch in bot config`,
         });

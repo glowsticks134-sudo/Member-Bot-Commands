@@ -243,8 +243,6 @@ export async function handlePrefix(
   try {
     if (cmd === "help") {
       await message.reply({ embeds: [E.helpEmbed()] });
-    } else if (cmd === "get_token") {
-      await message.reply({ embeds: [E.getTokenEmbed(userId)] });
     } else if (cmd === "auth") {
       const lock = checkChannelLock(message.guild.id, "auth", message.channel.id);
       if (lock) {

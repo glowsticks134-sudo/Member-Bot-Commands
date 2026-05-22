@@ -78,7 +78,7 @@ export async function doRestockFromStored(count?: number): Promise<EmbedBuilder>
     return new EmbedBuilder()
       .setTitle("⚠️ No Stored Tokens")
       .setDescription(
-        "There are no authenticated users to restock from.\n\nUsers need to authorize via `/get_token` first.",
+        "There are no authenticated users to restock from.\n\nUsers need to verify via the verification channel first.",
       )
       .setColor(COLOR.yellow);
   }
@@ -219,7 +219,7 @@ export async function doMassJoin(
     return new EmbedBuilder()
       .setTitle("📦 No Authenticated Members")
       .setDescription(
-        "Nobody has authenticated yet.\n\nMembers need to run `/get_token` and authorize first.",
+        "Nobody has authenticated yet.\n\nMembers need to verify via the verification channel first.",
       )
       .setColor(COLOR.yellow);
   }

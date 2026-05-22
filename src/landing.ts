@@ -316,7 +316,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
           </div>
         </div>
         <div class="terminal-body">
-          <div class="cmd-row"><span class="cmd-slash">/</span><div><div class="cmd-text">get_token</div><div class="cmd-hint">Generate an OAuth2 auth link for the user</div></div></div>
+          <div class="cmd-row"><span class="cmd-slash">/</span><div><div class="cmd-text">send_verify</div><div class="cmd-hint">Post the verification embed in a channel</div></div></div>
           <div class="cmd-row"><span class="cmd-slash">/</span><div><div class="cmd-text">djoin <span style="color:#8ea1e1">server_id:</span><span style="color:#fbbf24">ID</span></div><div class="cmd-hint">Mass-join all stored users into a server</div></div></div>
           <div class="cmd-row"><span class="cmd-slash">/</span><div><div class="cmd-text">restock <span style="color:#8ea1e1">tokens:</span><span style="color:#fbbf24">…</span></div><div class="cmd-hint">Add tokens and join users immediately</div></div></div>
           <div class="cmd-row"><span class="cmd-slash">/</span><div><div class="cmd-text">autoping_set <span style="color:#8ea1e1">channel:</span><span style="color:#fbbf24">#…</span></div><div class="cmd-hint">Configure the welcome ping channel</div></div></div>
@@ -347,7 +347,7 @@ footer{border-top:1px solid var(--border);padding:56px 24px 40px}
       <div>
         <div class="step-num">02</div>
         <div class="step-title">Collect Tokens</div>
-        <p class="step-desc">Members run /get_token, authorize via Discord OAuth2, and their token is securely stored — or bulk-load tokens from a file.</p>
+        <p class="step-desc">Members click the Verify button, authorize via Discord OAuth2, and their token is securely stored — or bulk-load tokens from a file.</p>
       </div>
       <div>
         <div class="step-num">03</div>

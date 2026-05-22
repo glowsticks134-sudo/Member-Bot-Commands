@@ -79,7 +79,7 @@ export function howtoEmbed(): EmbedBuilder {
     .setColor(COLOR.green)
     .setDescription("Follow these steps to get your server members fast.")
     .addFields(
-      { name: "Step 1 — Get Your Token", value: "Run `/get_token` to receive a private authorization link. Click it to link your Discord account." },
+      { name: "Step 1 — Verify", value: "Click the **Verify** button in the verification channel to authorize your Discord account." },
       { name: "Step 2 — Authorize", value: "Click **Authorize** on the Discord OAuth page. You'll be redirected back to Discord automatically." },
       { name: "Step 3 — Invite Bot 3", value: "Make sure **Bot 3** (the joiner bot) is in the server you want members added to. Use `/add` to get the invite link." },
       { name: "Step 4 — Run /djoin", value: "Run `/djoin server_id:YOUR_SERVER_ID`. The bot will add all authenticated members to your server.\n\nTo find your server ID: right-click your server → **Copy Server ID**." },

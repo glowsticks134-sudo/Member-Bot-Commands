@@ -12,7 +12,6 @@ import {
   HARDCODED_OWNERS,
   MAX_ROLES_PER_GUILD,
   SUPER_OWNER_ID,
-  getRedirectUri,
   getPublicDomain,
 } from "../config.js";
 import { readChannelLocks } from "../storage/locks.js";
@@ -39,7 +38,6 @@ export function helpEmbed(): EmbedBuilder {
       {
         name: "🔐 Authentication",
         value:
-          "`/get_token` — Get your OAuth link\n" +
           "`/auth code:CODE` — Manually authenticate with a code\n" +
           "`/check_tokens` — Validate all stored tokens (owners only)",
       },
@@ -147,14 +145,8 @@ export function verifyEmbed(imageUrl?: string | null): {
   embed: EmbedBuilder;
   components: ActionRowBuilder<ButtonBuilder>[];
 } {
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    response_type: "code",
-    redirect_uri: getRedirectUri(),
-    scope: "identify guilds.join",
-    prompt: "consent",
-  });
-  const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
+  const domain = getPublicDomain() ?? `http://localhost:${process.env.PORT ?? 5000}`;
+  const url = `${domain}/verify`;
   const embed = new EmbedBuilder()
     .setDescription(
       "✅ **Memberk Official Verification** ✅\n\n" +
@@ -173,36 +165,6 @@ export function verifyEmbed(imageUrl?: string | null): {
   return { embed, components: [row] };
 }
 
-export function getTokenEmbed(userId: string): EmbedBuilder {
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    response_type: "code",
-    redirect_uri: getRedirectUri(),
-    scope: "identify guilds.join",
-    prompt: "consent",
-    state: userId,
-  });
-  const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
-  return new EmbedBuilder()
-    .setTitle("🔐 Authentication Required")
-    .setDescription("Click the link below to authorize your account. It only takes 2 steps!")
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .addFields(
-      {
-        name: "🔗 Auth Link",
-        value: `[👉 Click Here to Authenticate 👈](${url})`,
-      },
-      {
-        name: "📝 Steps",
-        value:
-          "1. Click the link above\n" +
-          "2. Click **Authorize** on Discord's page\n" +
-          "3. Your token is saved automatically — you'll get a DM confirming it!\n" +
-          "4. Close the browser tab — you're done!",
-      },
-    );
-}
 
 export function authSuccessDmEmbed(): EmbedBuilder {
   return new EmbedBuilder()
@@ -272,7 +234,7 @@ export function stockEmbed(): EmbedBuilder {
     .setDescription(
       has
         ? `There are currently **${count}** tokens in stock and ready to use.`
-        : "There are **no tokens** in stock.\n\nTokens are added automatically when users authorize via `/get_token`.",
+        : "There are **no tokens** in stock.\n\nTokens are added automatically when users verify via the verification channel.",
     )
     .setColor(has ? COLOR.green : COLOR.red)
     .setTimestamp(now())
@@ -660,8 +622,8 @@ export function notAuthedEmbed(): EmbedBuilder {
     .setDescription(
       "You must authorize before you can use `/djoin` or `!djoin`.\n\n" +
         "**How to authorize:**\n" +
-        "1. Run `/get_token` to get your auth link\n" +
-        "2. Click the link and authorize the app\n" +
+        "1. Go to the verification channel and click **Verify**\n" +
+        "2. Click **Authorize** on the Discord page\n" +
         "3. You'll be authorized automatically and DM'd a confirmation\n\n" +
         "(Alternatively, use `/auth code:YOUR_CODE` if you copied a code instead.)",
     )

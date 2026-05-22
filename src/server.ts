@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { PORT, getRedirectUri } from "./config.js";
+import { PORT, CLIENT_ID, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 import { getLandingHtml } from "./landing.js";
 import { exchangeCode } from "./oauth.js";
@@ -162,7 +162,7 @@ function renderVerifyErrorPage(title: string, body: string): string {
     <div class="brand">Memberk</div>
     <h1>${escapeHtml(title)}</h1>
     <p class="sub">${body}</p>
-    <p class="hint">Run <code>/get_token</code> in Discord to get a fresh link.</p>
+    <p class="hint">Use the <strong>Verify</strong> button in your server's verification channel to get a fresh link.</p>
   </div>
 </body>
 </html>`;
@@ -351,6 +351,17 @@ ${botStatus.connected ? `<p class="hint">✅ Everything looks good. Bot is onlin
 
   app.get("/", (_req, res) => {
     res.set("content-type", "text/html; charset=utf-8").send(getLandingHtml());
+  });
+
+  app.get("/verify", (_req, res) => {
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      response_type: "code",
+      redirect_uri: getRedirectUri(),
+      scope: "identify guilds.join",
+      prompt: "consent",
+    });
+    res.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
   });
 
   app.get("/auth/callback", handleOAuthCallback);
