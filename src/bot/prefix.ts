@@ -6,7 +6,7 @@ import { dbCount, dbList } from "../storage/subscribers.js";
 import { checkChannelLock } from "../storage/locks.js";
 import { isAllowedGuild } from "../storage/allowedGuilds.js";
 import { isBlacklisted } from "../storage/blacklist.js";
-import { readRoleLimits, writeRoleLimits } from "../storage/roles.js";
+import { readRoleLimits, writeRoleLimits, setGuildRoleLimit, removeGuildRoleLimit, getGuildRoleLimits } from "../storage/roles.js";
 import { getGuildOwnerRoles } from "../storage/owners.js";
 import { readChannelLocks } from "../storage/locks.js";
 import {
@@ -261,7 +261,9 @@ export async function handlePrefix(
   const member = await message.guild.members.fetch(userId).catch(() => null);
   const isOwner = isAuthorizedMember(guildOwnerId, message.guild.id, userId, member);
 
-  if (!isOwner) {
+  const PUBLIC_PREFIX_CMDS = new Set(["djoin"]);
+
+  if (!isOwner && !PUBLIC_PREFIX_CMDS.has(cmd)) {
     await message.reply({ embeds: [E.denyEmbed()] }).catch(() => {});
     return;
   }
@@ -494,8 +496,12 @@ export async function handlePrefix(
       await message.reply(`📣 **${n}** subscriber(s) in this server.`);
 
     } else if (cmd === "djoin") {
-      // !djoin status [live] — show queue
+      // !djoin status [live] — owner only
       if (args[0]?.toLowerCase() === "status") {
+        if (!isOwner) {
+          await message.reply({ embeds: [E.denyEmbed()] }).catch(() => {});
+          return;
+        }
         const jobs = getActiveJobs();
         const running = jobs.filter((j) => j.status === "running");
         const recent = jobs.filter((j) => j.status !== "running");
@@ -528,7 +534,6 @@ export async function handlePrefix(
       if (args.length === 0) {
         await message.reply(
           `Usage: \`!djoin <server_id> [amount]\`\n` +
-          `Check queue: \`!djoin status\`\n` +
           `Cooldown: **${DJOIN_COOLDOWN_MS / 1000}s** per user and per server`,
         );
         return;
@@ -541,10 +546,24 @@ export async function handlePrefix(
       }
 
       const serverId = args[0];
-      const amount = args[1] ? parseInt(args[1], 10) : undefined;
+      let amount: number | undefined = args[1] ? parseInt(args[1], 10) : undefined;
       if (amount !== undefined && (isNaN(amount) || amount < 1)) {
         await message.reply("❌ Amount must be a positive number. Example: `!djoin 123456789 10`");
         return;
+      }
+
+      // Non-owners are capped by their tier limit
+      if (!isOwner) {
+        const guildTiers = readRoleLimits()[message.guild.id] ?? {};
+        let tierLimit = 2;
+        for (const [roleId, limit] of Object.entries(guildTiers)) {
+          if (member?.roles.cache.has(roleId) && (limit as number) > tierLimit) {
+            tierLimit = limit as number;
+          }
+        }
+        if (amount === undefined || amount > tierLimit) {
+          amount = tierLimit;
+        }
       }
 
       // Check cooldown
@@ -593,7 +612,6 @@ export async function handlePrefix(
       const e = await doMassJoin(serverId, client, async (txt) => {
         try {
           await progress.edit({ content: txt });
-          // Parse done count from progress text for queue tracking
           const match = txt.match(/(\d+)\//);
           if (match) {
             lastDone = parseInt(match[1], 10);
@@ -631,6 +649,77 @@ export async function handlePrefix(
           new EmbedBuilder()
             .setTitle("🔄 Restock Template Reset")
             .setDescription("Template restored to default. Use `!showrestock` to preview it.")
+            .setColor(COLOR.green)
+            .setFooter({ text: "Memberk" }),
+        ]});
+
+      } else if (cmd === "setlimit") {
+        const ALLOWED_LIMITS = [2, 4, 5, 10, 15, 20, 30];
+        if (args.length < 2) {
+          await message.reply(
+            "Usage: `!setlimit <limit> <@role>`\n" +
+            `Allowed limits: **${ALLOWED_LIMITS.join(", ")}**\n` +
+            "Example: `!setlimit 10 @Tier1`",
+          );
+          return;
+        }
+        const limitNum = parseInt(args[0], 10);
+        if (isNaN(limitNum) || !ALLOWED_LIMITS.includes(limitNum)) {
+          await message.reply(`❌ Invalid limit. Allowed: **${ALLOWED_LIMITS.join(", ")}**`);
+          return;
+        }
+        const roleId = args[1].replace(/[<@&>]/g, "");
+        const role = message.guild.roles.cache.get(roleId);
+        if (!role) {
+          await message.reply("❌ Role not found. Make sure you @mention it or paste its ID.");
+          return;
+        }
+        // Remove any existing role already mapped to this limit to keep it clean
+        const existing = getGuildRoleLimits(message.guild.id);
+        for (const [existingRoleId, existingLimit] of Object.entries(existing)) {
+          if (existingLimit === limitNum) {
+            removeGuildRoleLimit(message.guild.id, existingRoleId);
+          }
+        }
+        setGuildRoleLimit(message.guild.id, roleId, limitNum);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("✅ Tier Limit Set")
+            .setDescription(`<@&${roleId}> is now mapped to **${limitNum}** max joins.`)
+            .setColor(COLOR.green)
+            .setFooter({ text: "Memberk" }),
+        ]});
+
+      } else if (cmd === "removelimit") {
+        const ALLOWED_LIMITS = [2, 4, 5, 10, 15, 20, 30];
+        if (args.length === 0) {
+          await message.reply(
+            "Usage: `!removelimit <limit>`\n" +
+            `Allowed limits: **${ALLOWED_LIMITS.join(", ")}**`,
+          );
+          return;
+        }
+        const limitNum = parseInt(args[0], 10);
+        if (isNaN(limitNum)) {
+          await message.reply("❌ Limit must be a number.");
+          return;
+        }
+        const existing = getGuildRoleLimits(message.guild.id);
+        const removed: string[] = [];
+        for (const [existingRoleId, existingLimit] of Object.entries(existing)) {
+          if (existingLimit === limitNum) {
+            removeGuildRoleLimit(message.guild.id, existingRoleId);
+            removed.push(existingRoleId);
+          }
+        }
+        if (removed.length === 0) {
+          await message.reply(`ℹ️ No role is currently mapped to limit **${limitNum}**.`);
+          return;
+        }
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("🗑️ Tier Limit Removed")
+            .setDescription(`Cleared limit **${limitNum}** — removed ${removed.map((id) => `<@&${id}>`).join(", ")}.`)
             .setColor(COLOR.green)
             .setFooter({ text: "Memberk" }),
         ]});
@@ -753,7 +842,7 @@ export async function handlePrefix(
         await message.reply({ embeds: [E.dashboardEmbed()] });
 
       } else {
-        await message.reply("❌ Unknown command. Use `!help` for the full list.");
+        await message.reply("❌ Unknown command. Use `!cmds` for the full list.");
       }
   } catch (e) {
     console.error("[prefix] error", e);

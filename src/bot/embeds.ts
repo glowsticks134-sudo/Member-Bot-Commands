@@ -31,31 +31,23 @@ function now(): Date {
 
 export function cmdsEmbed(): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle("👑 Memberk — Owner Commands")
+    .setTitle("Private Bot — Admin Commands")
+    .setDescription("Only members with **Administrator** can see this.")
     .setColor(COLOR.blurple)
     .setTimestamp(now())
     .addFields(
       {
-        name: "📦 Stock & Queue",
+        name: "📋 Tier Management",
         value:
-          "`!stock` — post a live stock embed (auto-updates)\n" +
-          "`!checkserver <server_id>` — inspect a server / stock for it\n" +
-          "`!checkqueue` — show running + queued djoin jobs\n" +
-          "`!djoin status` — show djoin worker status\n" +
-          "`!djoin <server_id> [amount]` — add stock accounts to a server\n" +
-          "Cooldown: **180s** per user and per server",
+          "`!setlimit <limit> <@role>` — assign a djoin limit to a role\n" +
+          "`!removelimit <limit>` — clear the role for a limit\n" +
+          "`!cleartiers` — remove all tier roles\n" +
+          "`!tiers` — show current tier mapping\n" +
+          "Allowed limits: **2, 4, 5, 10, 15, 20, 30**\n" +
+          "Default (no role): **2**",
       },
       {
-        name: "🔄 Stock Management",
-        value:
-          "`!restock [count]` — move stored tokens into bulk stock\n" +
-          "`!clear_stock` — wipe all bulk stock\n" +
-          "`!check_tokens` — validate all stored tokens\n" +
-          "`!count` — show stored token / stock counts\n" +
-          "`!list_users` — list all authenticated users",
-      },
-      {
-        name: "📋 Restock Template",
+        name: "🔄 Restock Template",
         value:
           "`!setrestock <message>` — customize this bot's restock broadcast\n" +
           "`!showrestock` — preview the current template\n" +
@@ -63,64 +55,27 @@ export function cmdsEmbed(): EmbedBuilder {
           "Placeholders: `{count}`, `{farm}`, `{addbot}`",
       },
       {
-        name: "📅 Schedules",
+        name: "📦 Stock & Queue",
         value:
-          "`!list_schedules` — view pending scheduled restocks\n" +
-          "`!cancel_daily_restock` — cancel the daily restock\n" +
-          "`!daily_restock_status` — show daily restock config\n" +
-          "_Use `/schedule_restock` and `/set_daily_restock` to create new schedules_",
+          "`!stock` — post a live stock embed (auto-updates)\n" +
+          "`!checkserver <server_id>` — inspect a server / stock for it\n" +
+          "`!checkqueue` — show running + queued djoin jobs\n" +
+          "`!djoin status [live]` — show djoin worker status",
       },
       {
-        name: "⚙️ Settings",
+        name: "👥 User Commands (everyone)",
         value:
-          "`!settings` — unified view of all settings\n" +
-          "`!tiers` — show current tier mapping\n" +
-          "`!cleartiers` — remove all tier roles\n" +
-          "`!listchannels` — show channel locks\n" +
-          "`!listroles` — show role limits\n" +
-          "`!listowner_roles` — show owner roles\n" +
-          "Allowed limits: **2, 4, 5, 10, 15, 20, 30** — Default (no role): **2**",
+          "`!djoin <server_id> [amount]` — add stock accounts to a server\n" +
+          "Cooldown: **180s** per user and per server",
       },
       {
-        name: "👑 Management",
+        name: "⚙️ Settings (managed by manager bot)",
         value:
-          "`!owners` — list all owners\n" +
-          "`!status` — bot status & uptime\n" +
-          "`!servers` — list servers the bot is in\n" +
-          "`!server_age [ID]` — check when a server was joined\n" +
-          "`!dashboard` — get the private dashboard link\n" +
-          "`!control_panel` — open interactive control panel\n" +
-          "`!restart` — restart the bot process\n" +
-          "`!deploy` — trigger a redeploy\n" +
-          "`!cleanup_servers` — leave all non-main servers",
+          "Channels (farm / farmlog / stock / restock / addbot) and the plan are set with " +
+          "`/edit` on the manager bot. Use `!settings` here to view current values.",
       },
-      {
-        name: "📣 Announcements",
-        value:
-          "`!announce <message>` — DM all subscribers\n" +
-          "`!setup_subscribe` — post the opt-in subscribe embed\n" +
-          "`!subscribers` — count subscribers in this server",
-      },
-      {
-        name: "🔧 Setup (slash commands — needs Discord UI)",
-        value:
-          "`/setrole` · `/removerole` — role djoin limits\n" +
-          "`/setowner_role` · `/removeowner_role` — owner role access\n" +
-          "`/setchannel` · `/clearchannel` — channel locks (farm, addbot, stock…)\n" +
-          "`/schedule_restock` · `/set_daily_restock` — scheduled restocks\n" +
-          "`/cancel_schedule` — cancel a scheduled restock\n" +
-          "`/send_verify` — post verification embed (Bot 2)\n" +
-          "`/autoping_set` · `/autoping_clear` — auto-ping new members",
-      },
-      {
-        name: "⚠️ Notes",
-        value:
-          "• All `!` commands are owner-only\n" +
-          "• `/` commands are public — anyone can use them\n" +
-          "• Bot auto-leaves servers after 14 days\n" +
-          "• Owner access = server owner, hardcoded owner ID, or owner role",
-      },
-    );
+    )
+    .setFooter({ text: "Powered by discord.gg/mebmerzz" });
 }
 
 export function helpEmbed(): EmbedBuilder {
