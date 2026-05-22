@@ -6,6 +6,26 @@ import { dbCount, dbList } from "../storage/subscribers.js";
 import { checkChannelLock } from "../storage/locks.js";
 import { isAllowedGuild } from "../storage/allowedGuilds.js";
 import { isBlacklisted } from "../storage/blacklist.js";
+import { readRoleLimits, writeRoleLimits } from "../storage/roles.js";
+import { getGuildOwnerRoles } from "../storage/owners.js";
+import { readChannelLocks } from "../storage/locks.js";
+import {
+  getRestockTemplate,
+  setRestockTemplate,
+  resetRestockTemplate,
+  renderRestockTemplate,
+  DEFAULT_TEMPLATE,
+} from "../storage/restockTemplate.js";
+import {
+  startDjoinJob,
+  updateDjoinJob,
+  finishDjoinJob,
+  getActiveJobs,
+  isJobRunning,
+  checkCooldown,
+  setCooldown,
+  DJOIN_COOLDOWN_MS,
+} from "../storage/djoinQueue.js";
 import * as E from "./embeds.js";
 import { isAuthorizedMember } from "./permissions.js";
 import {
@@ -29,6 +49,7 @@ const OWNER_PREFIX_CMDS = new Set([
   "schedule_restock", "list_schedules", "cancel_schedule",
   "set_daily_restock", "cancel_daily_restock", "daily_restock_status",
   "setup_subscribe", "announce",
+  "setrestock", "resetrestock", "cleartiers",
 ]);
 
 export async function handlePrefix(
@@ -243,6 +264,7 @@ export async function handlePrefix(
   try {
     if (cmd === "help") {
       await message.reply({ embeds: [E.helpEmbed()] });
+
     } else if (cmd === "auth") {
       const lock = checkChannelLock(message.guild.id, "auth", message.channel.id);
       if (lock) {
@@ -272,61 +294,366 @@ export async function handlePrefix(
             .setColor(COLOR.green),
         ],
       });
+
     } else if (cmd === "count") {
       await message.reply({ embeds: [E.countEmbed()] });
+
     } else if (cmd === "list_users") {
       await message.reply({ embeds: [E.listUsersEmbed().embed] });
+
     } else if (cmd === "check_tokens") {
       const e = await doCheckTokens();
       await message.reply({ embeds: [e] });
+
     } else if (cmd === "stock") {
-      await message.reply({ embeds: [E.stockEmbed()] });
+      // Post a live auto-updating stock embed
+      const sent = await message.reply({ embeds: [E.stockEmbed()] });
+      state.liveMessages.set("stock", {
+        channelId: sent.channelId,
+        messageId: sent.id,
+      });
+
+    } else if (cmd === "checkserver") {
+      if (args.length === 0) {
+        await message.reply("Usage: `!checkserver <server_id>`");
+        return;
+      }
+      const targetId = args[0];
+      const targetGuild = client.guilds.cache.get(targetId);
+      if (!targetGuild) {
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("❌ Server Not Found")
+            .setDescription(`Bot is not in server \`${targetId}\`. Make sure the bot is invited there.`)
+            .setColor(COLOR.red),
+        ]});
+        return;
+      }
+      const stockUsers = readAuthUsers();
+      await targetGuild.members.fetch().catch(() => {});
+      const inServer = stockUsers.filter((u) =>
+        targetGuild.members.cache.has(u.userId),
+      ).length;
+      const joinedAt = state.serverJoinTimes.get(targetId);
+      const daysAgo = joinedAt
+        ? Math.floor((Date.now() - joinedAt.getTime()) / 86_400_000)
+        : null;
+      await message.reply({ embeds: [
+        new EmbedBuilder()
+          .setTitle(`🔍 Server Inspection`)
+          .setColor(COLOR.blurple)
+          .setTimestamp(new Date())
+          .addFields(
+            { name: "🏠 Server", value: `**${targetGuild.name}**\n\`${targetId}\``, inline: true },
+            { name: "👥 Members", value: String(targetGuild.memberCount), inline: true },
+            { name: "📦 Stock in Server", value: `${inServer} / ${stockUsers.length}`, inline: true },
+            { name: "📅 Bot Joined", value: daysAgo !== null ? `${daysAgo} day(s) ago` : "Unknown", inline: true },
+          )
+          .setFooter({ text: "Memberk" }),
+      ]});
+
+    } else if (cmd === "checkqueue") {
+      const jobs = getActiveJobs();
+      if (jobs.length === 0) {
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("📋 Djoin Queue")
+            .setDescription("No running or recently finished djoin jobs.")
+            .setColor(COLOR.blurple)
+            .setFooter({ text: "Memberk" }),
+        ]});
+        return;
+      }
+      const lines = jobs.map((j) => {
+        const icon = j.status === "running" ? "⏳" : j.status === "done" ? "✅" : "❌";
+        const elapsed = Math.floor((Date.now() - j.startedAt.getTime()) / 1000);
+        return `${icon} **${j.serverName}** (\`${j.serverId}\`) — ${j.done}/${j.total} — ${elapsed}s ago — by <@${j.requestedBy}>`;
+      });
+      await message.reply({ embeds: [
+        new EmbedBuilder()
+          .setTitle("📋 Djoin Queue")
+          .setDescription(lines.join("\n"))
+          .setColor(COLOR.blurple)
+          .setTimestamp(new Date())
+          .setFooter({ text: "Memberk" }),
+      ]});
+
     } else if (cmd === "status") {
       await message.reply({ embeds: [E.statusEmbed(client, state.botStartTime)] });
+
     } else if (cmd === "servers") {
       await message.reply({ embeds: [E.serversEmbed(client, state.serverJoinTimes)] });
+
     } else if (cmd === "server_age") {
       await message.reply({
         embeds: [E.serverAgeEmbed(args[0] ?? null, client, state.serverJoinTimes)],
       });
+
     } else if (cmd === "invite") {
       await message.reply({ embeds: [E.inviteEmbed()] });
+
     } else if (cmd === "owners") {
       await message.reply({ embeds: [E.ownersEmbed(guildOwnerId, message.guild.id)] });
+
     } else if (cmd === "listowner_roles") {
       await message.reply({ embeds: [E.ownerRolesEmbed(message.guild.id)] });
+
     } else if (cmd === "listroles") {
       await message.reply({ embeds: [E.roleLimitsEmbed(message.guild.id)] });
+
+    } else if (cmd === "tiers") {
+      // Show current tier/role limit mapping for this guild
+      const tiers = Object.entries(
+        readRoleLimits()[message.guild.id] ?? {},
+      );
+      if (tiers.length === 0) {
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("🏷️ Tiers")
+            .setDescription("No tier roles set. Use `/setrole` to assign djoin limits per role.")
+            .setColor(COLOR.blurple)
+            .setFooter({ text: "Memberk" }),
+        ]});
+        return;
+      }
+      const sorted = tiers.sort((a, b) => b[1] - a[1]);
+      const lines = sorted.map(([roleId, limit]) => `<@&${roleId}> — **${limit}** max joins`);
+      lines.push(`\nDefault (no role): **2**`);
+      lines.push(`Allowed limits: **2, 4, 5, 10, 15, 20, 30**`);
+      await message.reply({ embeds: [
+        new EmbedBuilder()
+          .setTitle("🏷️ Tier Mapping")
+          .setDescription(lines.join("\n"))
+          .setColor(COLOR.blurple)
+          .setTimestamp(new Date())
+          .setFooter({ text: "Memberk" }),
+      ]});
+
     } else if (cmd === "listchannels") {
       await message.reply({ embeds: [E.channelLocksEmbed(message.guild.id)] });
+
+    } else if (cmd === "settings") {
+      // Unified settings view
+      const locks = readChannelLocks()[message.guild.id] ?? {};
+      const tiers = Object.entries(readRoleLimits()[message.guild.id] ?? {});
+      const ownerRoles = getGuildOwnerRoles(message.guild.id);
+      const template = getRestockTemplate(message.guild.id);
+      const isDefault = template === DEFAULT_TEMPLATE;
+
+      const channelLines = Object.entries(locks).length > 0
+        ? Object.entries(locks).map(([type, id]) => `**${type}:** <#${id}>`).join("\n")
+        : "No channels configured — use `/setchannel` or `/edit` to set them.";
+
+      const tierLines = tiers.length > 0
+        ? tiers.sort((a, b) => b[1] - a[1]).map(([id, lim]) => `<@&${id}> → **${lim}**`).join("\n")
+        : "No tier roles set. Default limit: **2**";
+
+      const roleLines = ownerRoles.length > 0
+        ? ownerRoles.map((id) => `<@&${id}>`).join(", ")
+        : "None";
+
+      await message.reply({ embeds: [
+        new EmbedBuilder()
+          .setTitle("⚙️ Settings")
+          .setColor(COLOR.blurple)
+          .setTimestamp(new Date())
+          .addFields(
+            { name: "📢 Channels", value: channelLines },
+            { name: "🏷️ Tier Roles", value: tierLines },
+            { name: "👑 Owner Roles", value: roleLines },
+            { name: "📋 Restock Template", value: isDefault ? "*(default)*" : `\`\`\`${template.slice(0, 200)}\`\`\`` },
+          )
+          .setFooter({ text: "Use /edit or slash commands to change settings • Memberk" }),
+      ]});
+
+    } else if (cmd === "showrestock") {
+      const template = getRestockTemplate(message.guild.id);
+      const stockCount = readAuthUsers().length;
+      const locks = readChannelLocks()[message.guild.id] ?? {};
+      const farmId = (locks as Record<string, string>)["farm"] ?? null;
+      const addBotId = (locks as Record<string, string>)["addbot"] ?? null;
+      const preview = renderRestockTemplate(template, stockCount, farmId, addBotId);
+      await message.reply({ embeds: [
+        new EmbedBuilder()
+          .setTitle("👁️ Restock Template Preview")
+          .setColor(COLOR.blurple)
+          .addFields(
+            { name: "Template", value: `\`\`\`${template.slice(0, 500)}\`\`\`` },
+            { name: "Preview (with current values)", value: preview.slice(0, 500) },
+          )
+          .setFooter({ text: "Placeholders: {count}, {farm}, {addbot} • Memberk" }),
+      ]});
+
     } else if (cmd === "subscribers") {
       const n = dbCount(message.guild.id);
       await message.reply(`📣 **${n}** subscriber(s) in this server.`);
+
     } else if (cmd === "djoin") {
-      if (args.length === 0) {
-        await message.reply("Usage: `!djoin SERVER_ID`");
+      // !djoin status [live] — show queue
+      if (args[0]?.toLowerCase() === "status") {
+        const jobs = getActiveJobs();
+        const running = jobs.filter((j) => j.status === "running");
+        const recent = jobs.filter((j) => j.status !== "running");
+        const lines: string[] = [];
+        if (running.length > 0) {
+          lines.push("**⏳ Running:**");
+          for (const j of running) {
+            const elapsed = Math.floor((Date.now() - j.startedAt.getTime()) / 1000);
+            lines.push(`• **${j.serverName}** — ${j.done}/${j.total} (${elapsed}s) — <@${j.requestedBy}>`);
+          }
+        }
+        if (recent.length > 0) {
+          lines.push("\n**📋 Recently finished:**");
+          for (const j of recent) {
+            lines.push(`• ${j.status === "done" ? "✅" : "❌"} **${j.serverName}** — ${j.done}/${j.total} — <@${j.requestedBy}>`);
+          }
+        }
+        if (lines.length === 0) lines.push("No active or recent djoin jobs.");
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("🔧 Djoin Worker Status")
+            .setDescription(lines.join("\n"))
+            .setColor(COLOR.blurple)
+            .setTimestamp(new Date())
+            .setFooter({ text: `Cooldown: ${DJOIN_COOLDOWN_MS / 1000}s per user/server • Memberk` }),
+        ]});
         return;
       }
+
+      if (args.length === 0) {
+        await message.reply(
+          `Usage: \`!djoin <server_id> [amount]\`\n` +
+          `Check queue: \`!djoin status\`\n` +
+          `Cooldown: **${DJOIN_COOLDOWN_MS / 1000}s** per user and per server`,
+        );
+        return;
+      }
+
       const lock = checkChannelLock(message.guild.id, "djoin", message.channel.id);
       if (lock) {
         await message.reply({ embeds: [E.channelLockedEmbed(lock, "djoin")] });
         return;
       }
+
+      const serverId = args[0];
+      const amount = args[1] ? parseInt(args[1], 10) : undefined;
+      if (amount !== undefined && (isNaN(amount) || amount < 1)) {
+        await message.reply("❌ Amount must be a positive number. Example: `!djoin 123456789 10`");
+        return;
+      }
+
+      // Check cooldown
+      const cooldownRemaining = checkCooldown(userId, serverId);
+      if (cooldownRemaining > 0) {
+        const secs = Math.ceil(cooldownRemaining / 1000);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("⏳ Cooldown Active")
+            .setDescription(`You must wait **${secs}s** before using \`!djoin\` on this server again.\n\nCooldown: **${DJOIN_COOLDOWN_MS / 1000}s** per user and per server.`)
+            .setColor(COLOR.yellow)
+            .setFooter({ text: "Memberk" }),
+        ]});
+        return;
+      }
+
+      // Check if a job is already running for this server
+      if (isJobRunning(serverId)) {
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("⚠️ Already Running")
+            .setDescription(`A djoin is already in progress for server \`${serverId}\`. Use \`!checkqueue\` to check status.`)
+            .setColor(COLOR.yellow)
+            .setFooter({ text: "Memberk" }),
+        ]});
+        return;
+      }
+
+      const targetGuild = client.guilds.cache.get(serverId);
+      const serverName = targetGuild?.name ?? serverId;
+      const stockCount = readAuthUsers().length;
+
+      startDjoinJob({
+        serverId,
+        serverName,
+        requestedBy: userId,
+        startedAt: new Date(),
+        total: amount ?? stockCount,
+        done: 0,
+        status: "running",
+      });
+      setCooldown(userId, serverId);
+
       const progress = await message.reply("⏳ Starting mass join…");
-      const e = await doMassJoin(args[0], client, async (txt) => {
+      let lastDone = 0;
+      const e = await doMassJoin(serverId, client, async (txt) => {
         try {
           await progress.edit({ content: txt });
+          // Parse done count from progress text for queue tracking
+          const match = txt.match(/(\d+)\//);
+          if (match) {
+            lastDone = parseInt(match[1], 10);
+            updateDjoinJob(serverId, lastDone, amount ?? stockCount);
+          }
         } catch {
           /* noop */
         }
-      });
+      }, amount);
+      finishDjoinJob(serverId, e ? "done" : "failed");
       if (e) await progress.edit({ content: "", embeds: [e] });
+
     } else if (OWNER_PREFIX_CMDS.has(cmd)) {
       if (!isOwner) {
         await message.reply({ embeds: [E.denyEmbed()] });
         return;
       }
-      if (cmd === "restock") {
+
+      if (cmd === "setrestock") {
+        const template = args.join(" ").trim();
+        if (!template) {
+          await message.reply(
+            "Usage: `!setrestock <message>`\n" +
+            "Placeholders: `{count}`, `{farm}`, `{addbot}`\n" +
+            "Example: `!setrestock 📦 {count} accounts ready! Farm: {farm} | Add bot: {addbot}`",
+          );
+          return;
+        }
+        setRestockTemplate(message.guild.id, template);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("✅ Restock Template Updated")
+            .setDescription(`New template saved. Use \`!showrestock\` to preview it.`)
+            .setColor(COLOR.green)
+            .setFooter({ text: "Memberk" }),
+        ]});
+
+      } else if (cmd === "resetrestock") {
+        resetRestockTemplate(message.guild.id);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("🔄 Restock Template Reset")
+            .setDescription("Template restored to default. Use `!showrestock` to preview it.")
+            .setColor(COLOR.green)
+            .setFooter({ text: "Memberk" }),
+        ]});
+
+      } else if (cmd === "cleartiers") {
+        const all = readRoleLimits();
+        const guildTiers = all[message.guild.id];
+        if (!guildTiers || Object.keys(guildTiers).length === 0) {
+          await message.reply("ℹ️ No tier roles are set for this server.");
+          return;
+        }
+        delete all[message.guild.id];
+        writeRoleLimits(all);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("🗑️ Tiers Cleared")
+            .setDescription("All tier role limits have been removed from this server. Default limit of **2** applies to everyone.")
+            .setColor(COLOR.green)
+            .setFooter({ text: "Memberk" }),
+        ]});
+
+      } else if (cmd === "restock") {
         const count = args[0] ? parseInt(args[0], 10) : undefined;
         if (count !== undefined && isNaN(count)) {
           await message.reply("❌ Usage: `!restock [count]` — count must be a number. Example: `!restock 50`");
@@ -335,6 +662,7 @@ export async function handlePrefix(
         const loading = await message.reply("🔄 Restocking from stored tokens…");
         const e = await doRestockFromStored(count);
         await loading.edit({ content: "", embeds: [e] });
+
       } else if (cmd === "deploy") {
         const { RAILWAY_API_TOKEN, RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID } = await import("../config.js");
         if (!RAILWAY_API_TOKEN) {
@@ -368,18 +696,22 @@ export async function handlePrefix(
         } catch (err) {
           await loading.edit(`❌ Could not reach Railway: ${(err as Error).message}`);
         }
+
       } else if (cmd === "clear_stock") {
         clearStock();
         await message.reply("🧹 Stock cleared.");
+
       } else if (cmd === "cleanup_servers") {
         const loading = await message.reply("🧹 Cleaning up…");
         const e = await doCleanupServers(client, message.guild.id);
         await loading.edit({ content: "", embeds: [e] });
+
       } else if (cmd === "control_panel") {
         await message.reply({
           embeds: [controlPanelEmbed()],
           components: controlPanelComponents(),
         });
+
       } else if (cmd === "announce") {
         const text = args.join(" ").trim();
         if (!text) {
@@ -405,6 +737,7 @@ export async function handlePrefix(
           await new Promise((r) => setTimeout(r, 100));
         }
         await loading.edit({ content: `✅ Sent: ${sent} • Failed: ${failed}` });
+
       } else if (cmd === "setup_subscribe") {
         if ("send" in message.channel) {
           await message.channel.send({
@@ -412,16 +745,20 @@ export async function handlePrefix(
             components: subscribeComponents(),
           });
         }
+
       } else if (cmd === "restart") {
         await message.reply("🔄 Restarting…");
         setTimeout(() => process.exit(0), 500);
+
       } else if (cmd === "dashboard") {
         await message.reply({ embeds: [E.dashboardEmbed()] });
+
       } else {
         await message.reply(
           `ℹ️ Use the \`/\` slash version of \`${cmd}\` — it has nicer pickers.`,
         );
       }
+
     } else {
       await message.reply("❌ Unknown command. Use `!help` for the full list.");
     }

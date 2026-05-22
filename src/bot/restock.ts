@@ -186,6 +186,7 @@ export async function doMassJoin(
   serverId: string,
   client: Client,
   onProgress?: ProgressFn,
+  amount?: number,
 ): Promise<EmbedBuilder | null> {
   if (!/^\d+$/.test(serverId)) {
     return new EmbedBuilder()
@@ -214,7 +215,8 @@ export async function doMassJoin(
     }
   }
 
-  const users = readAuthUsers();
+  const allUsers = readAuthUsers();
+  const users = amount != null ? allUsers.slice(0, amount) : allUsers;
   if (users.length === 0) {
     return new EmbedBuilder()
       .setTitle("📦 No Authenticated Members")
