@@ -261,6 +261,11 @@ export async function handlePrefix(
   const member = await message.guild.members.fetch(userId).catch(() => null);
   const isOwner = isAuthorizedMember(guildOwnerId, message.guild.id, userId, member);
 
+  if (!isOwner) {
+    await message.reply({ embeds: [E.denyEmbed()] }).catch(() => {});
+    return;
+  }
+
   try {
     if (cmd === "help") {
       await message.reply({ embeds: [E.helpEmbed()] });
@@ -601,13 +606,7 @@ export async function handlePrefix(
       finishDjoinJob(serverId, e ? "done" : "failed");
       if (e) await progress.edit({ content: "", embeds: [e] });
 
-    } else if (OWNER_PREFIX_CMDS.has(cmd)) {
-      if (!isOwner) {
-        await message.reply({ embeds: [E.denyEmbed()] });
-        return;
-      }
-
-      if (cmd === "setrestock") {
+    } else if (cmd === "setrestock") {
         const template = args.join(" ").trim();
         if (!template) {
           await message.reply(
@@ -754,14 +753,8 @@ export async function handlePrefix(
         await message.reply({ embeds: [E.dashboardEmbed()] });
 
       } else {
-        await message.reply(
-          `ℹ️ Use the \`/\` slash version of \`${cmd}\` — it has nicer pickers.`,
-        );
+        await message.reply("❌ Unknown command. Use `!help` for the full list.");
       }
-
-    } else {
-      await message.reply("❌ Unknown command. Use `!help` for the full list.");
-    }
   } catch (e) {
     console.error("[prefix] error", e);
     try {
