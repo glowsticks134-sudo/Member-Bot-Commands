@@ -236,7 +236,7 @@ export function stockEmbed(): EmbedBuilder {
   const count = readAuthUsers().length;
   return new EmbedBuilder()
     .setTitle("Stock")
-    .setDescription(`Current stock: ${count}.\n\nPowered by .gg/memberz`)
+    .setDescription(`Current stock: ${count}.\n\nPowered by Memberk`)
     .setColor(COLOR.blurple);
 }
 
