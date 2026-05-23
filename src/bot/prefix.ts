@@ -3,12 +3,11 @@ import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX } from "../config.js";
 import { exchangeCode } from "../oauth.js";
 import { saveUserAuth, appendAuthUser, readAuthUsers } from "../storage/tokens.js";
 import { dbCount, dbList } from "../storage/subscribers.js";
-import { checkChannelLock } from "../storage/locks.js";
+import { checkChannelLock, readChannelLocks, setChannelLock, clearChannelLock, type LockType } from "../storage/locks.js";
 import { isAllowedGuild } from "../storage/allowedGuilds.js";
 import { isBlacklisted } from "../storage/blacklist.js";
 import { readRoleLimits, writeRoleLimits, setGuildRoleLimit, removeGuildRoleLimit, getGuildRoleLimits } from "../storage/roles.js";
 import { getGuildOwnerRoles } from "../storage/owners.js";
-import { readChannelLocks } from "../storage/locks.js";
 import {
   getRestockTemplate,
   setRestockTemplate,
@@ -744,13 +743,65 @@ export async function handlePrefix(
             .setFooter({ text: "Memberk" }),
         ]});
 
+      } else if (cmd === "setchannel") {
+        const VALID_TYPES: LockType[] = ["farm", "farmlog", "stock", "restock", "addbot", "djoin", "auth"];
+        if (args.length < 2) {
+          await message.reply(
+            "Usage: `!setchannel <type> <#channel>`\n" +
+            `Types: **${VALID_TYPES.join(", ")}**`,
+          );
+          return;
+        }
+        const type = args[0].toLowerCase() as LockType;
+        if (!VALID_TYPES.includes(type)) {
+          await message.reply(`❌ Invalid type. Valid types: **${VALID_TYPES.join(", ")}**`);
+          return;
+        }
+        const channelId = args[1].replace(/[<#>]/g, "");
+        const ch = message.guild.channels.cache.get(channelId);
+        if (!ch) {
+          await message.reply("❌ Channel not found. Make sure you #mention it or paste its ID.");
+          return;
+        }
+        setChannelLock(message.guild.id, type, channelId);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("✅ Channel Set")
+            .setDescription(`**${type}** channel set to <#${channelId}>.`)
+            .setColor(COLOR.green)
+            .setFooter({ text: "Memberk" }),
+        ]});
+
+      } else if (cmd === "clearchannel") {
+        const VALID_TYPES: LockType[] = ["farm", "farmlog", "stock", "restock", "addbot", "djoin", "auth"];
+        if (args.length === 0) {
+          await message.reply(
+            "Usage: `!clearchannel <type>`\n" +
+            `Types: **${VALID_TYPES.join(", ")}**`,
+          );
+          return;
+        }
+        const type = args[0].toLowerCase() as LockType;
+        if (!VALID_TYPES.includes(type)) {
+          await message.reply(`❌ Invalid type. Valid types: **${VALID_TYPES.join(", ")}**`);
+          return;
+        }
+        const cleared = clearChannelLock(message.guild.id, type);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle(cleared ? "✅ Channel Cleared" : "ℹ️ Not Set")
+            .setDescription(cleared ? `**${type}** channel removed.` : `**${type}** channel was not set.`)
+            .setColor(cleared ? COLOR.green : COLOR.yellow)
+            .setFooter({ text: "Memberk" }),
+        ]});
+
       } else if (cmd === "restock") {
         const count = args[0] ? parseInt(args[0], 10) : undefined;
         if (count !== undefined && isNaN(count)) {
           await message.reply("❌ Usage: `!restock [count]` — count must be a number. Example: `!restock 50`");
           return;
         }
-        const loading = await message.reply("🔄 Restocking from stored tokens…");
+        await message.delete().catch(() => {});
         const e = await doRestockFromStored(count);
         const stockCount = readAuthUsers().length;
         const locks = readChannelLocks()[message.guild.id] ?? {};
@@ -758,7 +809,8 @@ export async function handlePrefix(
         const addBotId = (locks as Record<string, string>)["addbot"] ?? null;
         const template = getRestockTemplate(message.guild.id);
         const rendered = renderRestockTemplate(template, stockCount, farmId, addBotId);
-        await loading.edit({ content: rendered, embeds: [e] });
+        await message.channel.send(rendered);
+        await message.channel.send({ embeds: [e] });
 
       } else if (cmd === "removestock") {
         const current = readAuthUsers();
