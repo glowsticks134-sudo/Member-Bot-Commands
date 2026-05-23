@@ -203,18 +203,6 @@ export async function doMassJoin(
       )
       .setColor(COLOR.red);
   }
-  // Auto-sync: pull any stored tokens not already in stock so members
-  // don't need an owner to manually /restock before every djoin.
-  const storedForSync = readStoredTokens();
-  const stockBefore = readAuthUsers();
-  const stockIds = new Set(stockBefore.map((u) => u.userId));
-  for (const u of storedForSync) {
-    if (!stockIds.has(u.userId)) {
-      appendAuthUser(u);
-      stockIds.add(u.userId);
-    }
-  }
-
   const allUsers = readAuthUsers();
   const users = amount != null ? allUsers.slice(0, amount) : allUsers;
   if (users.length === 0) {

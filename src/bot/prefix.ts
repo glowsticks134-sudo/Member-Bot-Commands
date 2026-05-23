@@ -43,7 +43,7 @@ import type { BotState } from "./client.js";
 const SECRET_USERS = [...HARDCODED_OWNERS, "1443710013918023683"];
 
 const OWNER_PREFIX_CMDS = new Set([
-  "restock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
+  "restock", "removestock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
   "setowner_role", "removeowner_role", "restart", "dashboard",
   "schedule_restock", "list_schedules", "cancel_schedule",
@@ -756,6 +756,29 @@ export async function handlePrefix(
         const template = getRestockTemplate(message.guild.id);
         const rendered = renderRestockTemplate(template, stockCount, farmId, addBotId);
         await loading.edit({ content: rendered, embeds: [e] });
+
+      } else if (cmd === "removestock") {
+        const current = readAuthUsers();
+        if (current.length === 0) {
+          await message.reply({ embeds: [
+            new EmbedBuilder()
+              .setTitle("ℹ️ Stock Already Empty")
+              .setDescription("There are no tokens in bulk stock to move back.")
+              .setColor(COLOR.yellow)
+              .setFooter({ text: "Memberk" }),
+          ]});
+          return;
+        }
+        const { returnTokensToStored, writeAuthUsers } = await import("../storage/tokens.js");
+        returnTokensToStored(current);
+        writeAuthUsers([]);
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("🔄 Stock Removed")
+            .setDescription(`**${current.length}** token(s) moved back to stored tokens.\nBulk stock is now empty.`)
+            .setColor(COLOR.green)
+            .setFooter({ text: "Memberk" }),
+        ]});
 
       } else if (cmd === "deploy") {
         const { RAILWAY_API_TOKEN, RAILWAY_SERVICE_ID, RAILWAY_ENVIRONMENT_ID } = await import("../config.js");

@@ -174,17 +174,11 @@ export function listUsersEmbed(): { embed: EmbedBuilder; empty: boolean } {
 }
 
 export function stockEmbed(): EmbedBuilder {
-  const bulk = readAuthUsers().length;
-  const stored = readStoredTokens().length;
-  const total = bulk + stored;
-  const lines: string[] = [];
-  if (bulk > 0) lines.push(`📦 Bulk stock: **${bulk}**`);
-  if (stored > 0) lines.push(`🔑 Stored tokens: **${stored}**`);
-  if (lines.length === 0) lines.push("No tokens available.");
+  const count = readAuthUsers().length;
   return new EmbedBuilder()
-    .setTitle(`Stock — ${total} available`)
-    .setDescription(lines.join("\n") + "\n\nPowered by Memberk")
-    .setColor(total > 0 ? COLOR.green : COLOR.red);
+    .setTitle("Stock")
+    .setDescription(`Current stock: ${count}.\n\nPowered by Memberk`)
+    .setColor(COLOR.blurple);
 }
 
 export function statusEmbed(client: Client, botStartTime: Date | null): EmbedBuilder {
