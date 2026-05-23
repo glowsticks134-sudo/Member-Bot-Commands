@@ -36,7 +36,7 @@ function renderVerifySuccessPage(): string {
   }
   .ring {
     width: 80px; height: 80px; border-radius: 50%;
-    background: rgba(245,158,11,0.12); border: 2px solid #f59e0b;
+    background: rgba(0,200,255,0.12); border: 2px solid #00c8ff;
     display: flex; align-items: center; justify-content: center;
     margin: 0 auto 24px;
     animation: pop .4s cubic-bezier(.34,1.56,.64,1) both;
@@ -46,7 +46,7 @@ function renderVerifySuccessPage(): string {
     to   { transform: scale(1);  opacity: 1; }
   }
   .check {
-    width: 36px; height: 36px; stroke: #f59e0b;
+    width: 36px; height: 36px; stroke: #00c8ff;
     stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round;
     animation: draw .5s ease .3s both;
     stroke-dasharray: 60;
@@ -57,7 +57,7 @@ function renderVerifySuccessPage(): string {
   }
   .brand {
     font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-    color: #f59e0b; margin-bottom: 12px;
+    color: #00c8ff; margin-bottom: 12px;
   }
   h1 { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 10px; }
   .sub {
@@ -70,8 +70,8 @@ function renderVerifySuccessPage(): string {
   }
   .step-dot {
     flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
-    background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.4);
-    color: #f59e0b; font-size: 11px; font-weight: 700;
+    background: rgba(0,200,255,0.15); border: 1px solid rgba(0,200,255,0.4);
+    color: #00c8ff; font-size: 11px; font-weight: 700;
     display: flex; align-items: center; justify-content: center; margin-top: 1px;
   }
   .step-text { font-size: 13px; color: #b9bbbe; line-height: 1.5; }
@@ -79,7 +79,7 @@ function renderVerifySuccessPage(): string {
   .close-hint {
     margin-top: 24px; font-size: 12px; color: #4f545c;
   }
-  .close-hint span { color: #f59e0b; font-weight: 600; }
+  .close-hint span { color: #00c8ff; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -103,7 +103,7 @@ function renderVerifySuccessPage(): string {
     </div>
     <div class="step">
       <div class="step-dot">3</div>
-      <div class="step-text"><strong>You're done</strong> — you can now be joined to servers via <code style="background:#0b0d12;padding:2px 5px;border-radius:4px;color:#f59e0b;font-size:12px">/djoin</code>.</div>
+      <div class="step-text"><strong>You're done</strong> — you can now be joined to servers via <code style="background:#0b0d12;padding:2px 5px;border-radius:4px;color:#00c8ff;font-size:12px">/djoin</code>.</div>
     </div>
     <p class="close-hint">This tab will close in <span id="t">5</span>s — or close it now.</p>
   </div>
@@ -149,11 +149,11 @@ function renderVerifyErrorPage(title: string, body: string): string {
   }
   @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   .x { font-size: 32px; line-height: 1; color: #ed4245; font-weight: 700; }
-  .brand { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #f59e0b; margin-bottom: 12px; }
+  .brand { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #00c8ff; margin-bottom: 12px; }
   h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 10px; }
   .sub { font-size: 14px; color: #9aa0a6; line-height: 1.6; }
   .hint { margin-top: 24px; font-size: 13px; color: #72767d; }
-  code { background: #0b0d12; padding: 2px 6px; border-radius: 4px; color: #f59e0b; font-size: 12px; }
+  code { background: #0b0d12; padding: 2px 6px; border-radius: 4px; color: #00c8ff; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -204,7 +204,7 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     console.error(`[oauth] token exchange failed: ${tokenRes.error}`);
     res.send(renderVerifyErrorPage(
       "Authorization Failed",
-      `Could not link your account. <code style="background:#0b0d12;padding:2px 5px;border-radius:4px;color:#f59e0b;font-size:12px">${escapeHtml(tokenRes.error.slice(0, 120))}</code>`,
+      `Could not link your account. <code style="background:#0b0d12;padding:2px 5px;border-radius:4px;color:#00c8ff;font-size:12px">${escapeHtml(tokenRes.error.slice(0, 120))}</code>`,
     ));
     return;
   }

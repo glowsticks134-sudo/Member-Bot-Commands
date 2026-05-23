@@ -118,7 +118,7 @@ export function verifyEmbed(imageUrl?: string | null): {
       "✅ **Memberk Official Verification** ✅\n\n" +
         "✅ Verify or no restocks! ( Cannot farm members too )",
     )
-    .setColor(0xf59e0b);
+    .setColor(0x00c8ff);
   if (imageUrl) {
     embed.setImage(imageUrl);
   }
