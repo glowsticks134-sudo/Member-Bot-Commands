@@ -237,6 +237,7 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     { name: "cancel_daily_restock", description: "Cancel daily restock (owners only)", type: 1 },
     { name: "daily_restock_status", description: "Show daily restock config (owners only)", type: 1 },
     { name: "subscribers", description: "Count subscribers in this server", type: 1 },
+    { name: "livestock", description: "Post a live-updating stock embed everyone can see", type: 1 },
     {
       name: "send_verify",
       description: "Post a public verification embed using the verification bot (owners only)",
@@ -1033,8 +1034,8 @@ export async function handleSlash(
       await i.reply({ content: `📣 **${n}** subscriber(s) in this server.`, ephemeral: true });
       return;
     }
-    case "live_stock": {
-      if (!(await ownerGuard(i))) return;
+    case "live_stock":
+    case "livestock": {
       if (!i.channel || !("send" in i.channel)) {
         await i.reply({ content: "❌ Cannot post here.", ephemeral: true });
         return;
