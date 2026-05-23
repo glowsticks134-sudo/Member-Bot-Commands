@@ -1,7 +1,7 @@
 import { EmbedBuilder, PermissionFlagsBits, OverwriteType, type Client, type Message } from "discord.js";
 import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX } from "../config.js";
 import { exchangeCode } from "../oauth.js";
-import { saveUserAuth, appendAuthUser, readAuthUsers } from "../storage/tokens.js";
+import { saveUserAuth, appendAuthUser, readAuthUsers, readStoredTokens } from "../storage/tokens.js";
 import { dbCount, dbList } from "../storage/subscribers.js";
 import { checkChannelLock, readChannelLocks, setChannelLock, clearChannelLock, type LockType } from "../storage/locks.js";
 import { isAllowedGuild } from "../storage/allowedGuilds.js";
@@ -48,7 +48,7 @@ const OWNER_PREFIX_CMDS = new Set([
   "schedule_restock", "list_schedules", "cancel_schedule",
   "set_daily_restock", "cancel_daily_restock", "daily_restock_status",
   "setup_subscribe", "announce",
-  "setrestock", "resetrestock", "cleartiers",
+  "setrestock", "resetrestock", "showrestock", "storedtokens", "cleartiers",
 ]);
 
 export async function handlePrefix(
@@ -487,6 +487,33 @@ export async function handlePrefix(
           )
           .setFooter({ text: "Placeholders: {count}, {farm}, {addbot} • Memberk" }),
       ]});
+
+    } else if (cmd === "storedtokens") {
+      const tokens = readStoredTokens();
+      if (tokens.length === 0) {
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle("🗝️ Stored Tokens")
+            .setDescription("No stored tokens found.")
+            .setColor(COLOR.red)
+            .setFooter({ text: "Memberk" }),
+        ]});
+        return;
+      }
+      const CHUNK = 15;
+      for (let page = 0; page < Math.ceil(tokens.length / CHUNK); page++) {
+        const slice = tokens.slice(page * CHUNK, (page + 1) * CHUNK);
+        const lines = slice.map((t, i) =>
+          `\`${page * CHUNK + i + 1}.\` <@${t.userId}> \`${t.userId}\``,
+        );
+        await message.reply({ embeds: [
+          new EmbedBuilder()
+            .setTitle(`🗝️ Stored Tokens (${tokens.length} total)${Math.ceil(tokens.length / CHUNK) > 1 ? ` — page ${page + 1}` : ""}`)
+            .setDescription(lines.join("\n"))
+            .setColor(COLOR.blurple)
+            .setFooter({ text: "Memberk" }),
+        ]});
+      }
 
     } else if (cmd === "subscribers") {
       const n = dbCount(message.guild.id);
@@ -927,7 +954,7 @@ export async function handlePrefix(
         await message.reply({ embeds: [E.dashboardEmbed()] });
 
       } else {
-        await message.reply("❌ Unknown command. Use `!cmds` for the full list.");
+        await message.reply("❌ Unknown command. Use `!help` to see available commands.");
       }
   } catch (e) {
     console.error("[prefix] error", e);

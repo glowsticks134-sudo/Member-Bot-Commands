@@ -46,6 +46,12 @@ import {
   getAutoPing,
   setAutoPing,
 } from "../storage/autoping.js";
+import {
+  getRestockTemplate,
+  setRestockTemplate,
+  resetRestockTemplate,
+  renderRestockTemplate,
+} from "../storage/restockTemplate.js";
 import { sendAutoPing } from "./autoping.js";
 import {
   clearStatusRoleConfig,
@@ -203,6 +209,16 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       ],
     },
     { name: "listchannels", description: "Show channel locks", type: 1 },
+    {
+      name: "setrestock",
+      description: "Edit or reset the restock broadcast template (owners only)",
+      type: 1,
+      options: [
+        { name: "template", description: "New template text — use {count}, {farm}, {addbot}", type: O.String, required: false },
+        { name: "reset", description: "Restore the default template", type: O.Boolean, required: false },
+      ],
+    },
+    { name: "showrestock", description: "Preview the current restock template (owners only)", type: 1 },
     {
       name: "schedule_restock",
       description: "Schedule a restock (owners only)",
@@ -916,6 +932,59 @@ export async function handleSlash(
             .setDescription(
               `Schedule \`${sid}\` will run in **${time}** (<t:${Math.floor(runAt / 1000)}:R>) in this channel.`,
             ),
+        ],
+        ephemeral: true,
+      });
+      return;
+    }
+    case "setrestock": {
+      if (!(await ownerGuard(i))) return;
+      const doReset = i.options.getBoolean("reset") ?? false;
+      const tmpl = i.options.getString("template");
+      if (doReset) {
+        resetRestockTemplate(i.guildId!);
+        await i.reply({ content: "🔄 Restock template restored to default. Use `/showrestock` to preview it.", ephemeral: true });
+        return;
+      }
+      if (!tmpl) {
+        const current = getRestockTemplate(i.guildId!);
+        await i.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("🔄 Restock Template")
+              .setDescription("Provide a `template` to update, or set `reset: True` to restore the default.")
+              .addFields({ name: "Current Template", value: `\`\`\`${current.slice(0, 900)}\`\`\`` })
+              .setColor(COLOR.blurple)
+              .setFooter({ text: "Placeholders: {count}, {farm}, {addbot}" }),
+          ],
+          ephemeral: true,
+        });
+        return;
+      }
+      setRestockTemplate(i.guildId!, tmpl);
+      await i.reply({ content: "✅ Restock template updated. Use `/showrestock` to preview it.", ephemeral: true });
+      return;
+    }
+    case "showrestock": {
+      if (!(await ownerGuard(i))) return;
+      const { readChannelLocks } = await import("../storage/locks.js");
+      const { readAuthUsers } = await import("../storage/tokens.js");
+      const template = getRestockTemplate(i.guildId!);
+      const stockCount = readAuthUsers().length;
+      const locks = readChannelLocks()[i.guildId!] ?? {};
+      const farmId = (locks as Record<string, string>)["farm"] ?? null;
+      const addBotId = (locks as Record<string, string>)["addbot"] ?? null;
+      const preview = renderRestockTemplate(template, stockCount, farmId, addBotId);
+      await i.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("👁️ Restock Template Preview")
+            .setColor(COLOR.blurple)
+            .addFields(
+              { name: "Template", value: `\`\`\`${template.slice(0, 500)}\`\`\`` },
+              { name: "Preview (with current values)", value: preview.slice(0, 500) },
+            )
+            .setFooter({ text: "Placeholders: {count}, {farm}, {addbot} • Memberk" }),
         ],
         ephemeral: true,
       });

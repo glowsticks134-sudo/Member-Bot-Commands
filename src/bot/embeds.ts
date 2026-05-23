@@ -52,7 +52,14 @@ export function cmdsEmbed(): EmbedBuilder {
           "`!setrestock <message>` — customize this bot's restock broadcast\n" +
           "`!showrestock` — preview the current template\n" +
           "`!resetrestock` — restore the default template\n" +
-          "Placeholders: `{count}`, `{farm}`, `{addbot}`",
+          "Placeholders: `{count}`, `{farm}`, `{addbot}`\n" +
+          "Also: `/setrestock` (slash command with optional reset toggle)",
+      },
+      {
+        name: "🗝️ Stored Tokens",
+        value:
+          "`!storedtokens` — list all users who have stored personal OAuth tokens\n" +
+          "Shows user mention + ID, paginated at 15 per page",
       },
       {
         name: "📦 Stock & Queue",
