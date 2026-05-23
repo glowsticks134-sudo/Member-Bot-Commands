@@ -166,9 +166,7 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
           type: O.String,
           required: true,
           choices: [
-            { name: "djoin", value: "djoin" },
-            { name: "auth", value: "auth" },
-            { name: "farm", value: "farm" },
+            { name: "farm/djoin", value: "farm" },
             { name: "farmlog", value: "farmlog" },
             { name: "stock", value: "stock" },
             { name: "restock", value: "restock" },
@@ -195,9 +193,7 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
           type: O.String,
           required: true,
           choices: [
-            { name: "djoin", value: "djoin" },
-            { name: "auth", value: "auth" },
-            { name: "farm", value: "farm" },
+            { name: "farm/djoin", value: "farm" },
             { name: "farmlog", value: "farmlog" },
             { name: "stock", value: "stock" },
             { name: "restock", value: "restock" },
@@ -857,8 +853,10 @@ export async function handleSlash(
       const type = i.options.getString("type", true) as import("../storage/locks.js").LockType;
       const channel = i.options.getChannel("channel", true);
       setChannelLock(i.guildId!, type, channel.id);
+      if (type === "farm") setChannelLock(i.guildId!, "djoin", channel.id);
+      const setLabel = type === "farm" ? "farm + djoin" : type;
       await i.reply({
-        content: `✅ \`${type}\` is now locked to <#${channel.id}>.`,
+        content: `✅ \`${setLabel}\` channel set to <#${channel.id}>.`,
         ephemeral: true,
       });
       return;
@@ -867,8 +865,10 @@ export async function handleSlash(
       if (!(await ownerGuard(i))) return;
       const type = i.options.getString("type", true) as import("../storage/locks.js").LockType;
       const cleared = clearChannelLock(i.guildId!, type);
+      if (type === "farm") clearChannelLock(i.guildId!, "djoin");
+      const clearLabel = type === "farm" ? "farm + djoin" : type;
       await i.reply({
-        content: cleared ? "✅ Channel lock cleared." : "ℹ️ That type was not locked.",
+        content: cleared ? `✅ \`${clearLabel}\` channel lock cleared.` : "ℹ️ That type was not locked.",
         ephemeral: true,
       });
       return;

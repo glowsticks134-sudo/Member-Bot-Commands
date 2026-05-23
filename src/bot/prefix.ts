@@ -275,11 +275,6 @@ export async function handlePrefix(
       await message.reply({ embeds: [E.helpEmbed()] });
 
     } else if (cmd === "auth") {
-      const lock = checkChannelLock(message.guild.id, "auth", message.channel.id);
-      if (lock) {
-        await message.reply({ embeds: [E.channelLockedEmbed(lock, "auth")] });
-        return;
-      }
       if (args.length === 0) {
         await message.reply("Usage: `!auth CODE`");
         return;
@@ -744,11 +739,12 @@ export async function handlePrefix(
         ]});
 
       } else if (cmd === "setchannel") {
-        const VALID_TYPES: LockType[] = ["farm", "farmlog", "stock", "restock", "addbot", "djoin", "auth"];
+        const VALID_TYPES: LockType[] = ["farm", "farmlog", "stock", "restock", "addbot"];
         if (args.length < 2) {
           await message.reply(
             "Usage: `!setchannel <type> <#channel>`\n" +
-            `Types: **${VALID_TYPES.join(", ")}**`,
+            `Types: **${VALID_TYPES.join(", ")}**\n` +
+            "*(farm also sets the djoin channel)*",
           );
           return;
         }
@@ -764,20 +760,23 @@ export async function handlePrefix(
           return;
         }
         setChannelLock(message.guild.id, type, channelId);
+        if (type === "farm") setChannelLock(message.guild.id, "djoin", channelId);
+        const label = type === "farm" ? "farm + djoin" : type;
         await message.reply({ embeds: [
           new EmbedBuilder()
             .setTitle("✅ Channel Set")
-            .setDescription(`**${type}** channel set to <#${channelId}>.`)
+            .setDescription(`**${label}** channel set to <#${channelId}>.`)
             .setColor(COLOR.green)
             .setFooter({ text: "Memberk" }),
         ]});
 
       } else if (cmd === "clearchannel") {
-        const VALID_TYPES: LockType[] = ["farm", "farmlog", "stock", "restock", "addbot", "djoin", "auth"];
+        const VALID_TYPES: LockType[] = ["farm", "farmlog", "stock", "restock", "addbot"];
         if (args.length === 0) {
           await message.reply(
             "Usage: `!clearchannel <type>`\n" +
-            `Types: **${VALID_TYPES.join(", ")}**`,
+            `Types: **${VALID_TYPES.join(", ")}**\n` +
+            "*(clearing farm also clears the djoin channel)*",
           );
           return;
         }
@@ -787,10 +786,12 @@ export async function handlePrefix(
           return;
         }
         const cleared = clearChannelLock(message.guild.id, type);
+        if (type === "farm") clearChannelLock(message.guild.id, "djoin");
+        const label = type === "farm" ? "farm + djoin" : type;
         await message.reply({ embeds: [
           new EmbedBuilder()
             .setTitle(cleared ? "✅ Channel Cleared" : "ℹ️ Not Set")
-            .setDescription(cleared ? `**${type}** channel removed.` : `**${type}** channel was not set.`)
+            .setDescription(cleared ? `**${label}** channel removed.` : `**${label}** channel was not set.`)
             .setColor(cleared ? COLOR.green : COLOR.yellow)
             .setFooter({ text: "Memberk" }),
         ]});
