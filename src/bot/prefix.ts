@@ -43,7 +43,7 @@ import type { BotState } from "./client.js";
 const SECRET_USERS = [...HARDCODED_OWNERS, "1443710013918023683"];
 
 const OWNER_PREFIX_CMDS = new Set([
-  "restock", "removestock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
+  "cmds", "restock", "removestock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
   "setowner_role", "removeowner_role", "restart", "dashboard",
   "schedule_restock", "list_schedules", "cancel_schedule",
@@ -261,7 +261,7 @@ export async function handlePrefix(
   const member = await message.guild.members.fetch(userId).catch(() => null);
   const isOwner = isAuthorizedMember(guildOwnerId, message.guild.id, userId, member);
 
-  const PUBLIC_PREFIX_CMDS = new Set(["djoin"]);
+  const PUBLIC_PREFIX_CMDS = new Set(["djoin", "help"]);
 
   if (!isOwner && !PUBLIC_PREFIX_CMDS.has(cmd)) {
     await message.reply({ embeds: [E.denyEmbed()] }).catch(() => {});
@@ -271,6 +271,9 @@ export async function handlePrefix(
   try {
     if (cmd === "cmds") {
       await message.reply({ embeds: [E.cmdsEmbed()] });
+
+    } else if (cmd === "help") {
+      await message.reply({ embeds: [E.helpEmbed()] });
 
     } else if (cmd === "auth") {
       const lock = checkChannelLock(message.guild.id, "auth", message.channel.id);

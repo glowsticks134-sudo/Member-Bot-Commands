@@ -79,7 +79,26 @@ export function cmdsEmbed(): EmbedBuilder {
 }
 
 export function helpEmbed(): EmbedBuilder {
-  return cmdsEmbed();
+  return new EmbedBuilder()
+    .setTitle("Memberk — Commands")
+    .setColor(COLOR.blurple)
+    .setTimestamp(new Date())
+    .addFields(
+      {
+        name: "🚀 djoin",
+        value:
+          "`!djoin <server_id>` — join a server using your token\n" +
+          "`!djoin <server_id> <amount>` — join with a specific amount\n" +
+          "Cooldown: **180s** per use",
+      },
+      {
+        name: "🔐 Verification",
+        value:
+          "Click **Verify** in the verification channel to link your Discord account.\n" +
+          "You must be verified before using `!djoin`.",
+      },
+    )
+    .setFooter({ text: "Powered by Memberk" });
 }
 
 export function verifyEmbed(imageUrl?: string | null): {
