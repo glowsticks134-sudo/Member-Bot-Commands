@@ -15,23 +15,13 @@ import {
   renderRestockTemplate,
   DEFAULT_TEMPLATE,
 } from "../storage/restockTemplate.js";
-import {
-  startDjoinJob,
-  updateDjoinJob,
-  finishDjoinJob,
-  getActiveJobs,
-  isJobRunning,
-  checkCooldown,
-  setCooldown,
-  DJOIN_COOLDOWN_MS,
-} from "../storage/djoinQueue.js";
+import { getActiveJobs } from "../storage/djoinQueue.js";
 import * as E from "./embeds.js";
 import { isAuthorizedMember } from "./permissions.js";
 import {
   clearStock,
   doCheckTokens,
   doCleanupServers,
-  doMassJoin,
   doRestockFromStored,
 } from "./restock.js";
 import { controlPanelComponents, controlPanelEmbed } from "./controlPanel.js";
@@ -260,7 +250,7 @@ export async function handlePrefix(
   const member = await message.guild.members.fetch(userId).catch(() => null);
   const isOwner = isAuthorizedMember(guildOwnerId, message.guild.id, userId, member);
 
-  const PUBLIC_PREFIX_CMDS = new Set(["djoin", "help"]);
+  const PUBLIC_PREFIX_CMDS = new Set(["help"]);
 
   if (!isOwner && !PUBLIC_PREFIX_CMDS.has(cmd)) {
     await message.reply({ embeds: [E.denyEmbed()] }).catch(() => {});
@@ -518,135 +508,6 @@ export async function handlePrefix(
     } else if (cmd === "subscribers") {
       const n = dbCount(message.guild.id);
       await message.reply(`📣 **${n}** subscriber(s) in this server.`);
-
-    } else if (cmd === "djoin") {
-      // !djoin status [live] — owner only
-      if (args[0]?.toLowerCase() === "status") {
-        if (!isOwner) {
-          await message.reply({ embeds: [E.denyEmbed()] }).catch(() => {});
-          return;
-        }
-        const jobs = getActiveJobs();
-        const running = jobs.filter((j) => j.status === "running");
-        const recent = jobs.filter((j) => j.status !== "running");
-        const lines: string[] = [];
-        if (running.length > 0) {
-          lines.push("**⏳ Running:**");
-          for (const j of running) {
-            const elapsed = Math.floor((Date.now() - j.startedAt.getTime()) / 1000);
-            lines.push(`• **${j.serverName}** — ${j.done}/${j.total} (${elapsed}s) — <@${j.requestedBy}>`);
-          }
-        }
-        if (recent.length > 0) {
-          lines.push("\n**📋 Recently finished:**");
-          for (const j of recent) {
-            lines.push(`• ${j.status === "done" ? "✅" : "❌"} **${j.serverName}** — ${j.done}/${j.total} — <@${j.requestedBy}>`);
-          }
-        }
-        if (lines.length === 0) lines.push("No active or recent djoin jobs.");
-        await message.reply({ embeds: [
-          new EmbedBuilder()
-            .setTitle("🔧 Djoin Worker Status")
-            .setDescription(lines.join("\n"))
-            .setColor(COLOR.blurple)
-            .setTimestamp(new Date())
-            .setFooter({ text: `Cooldown: ${DJOIN_COOLDOWN_MS / 1000}s per user/server • Memberk` }),
-        ]});
-        return;
-      }
-
-      if (args.length === 0) {
-        await message.reply(
-          `Usage: \`!djoin <server_id> [amount]\`\n` +
-          `Cooldown: **${DJOIN_COOLDOWN_MS / 1000}s** per user and per server`,
-        );
-        return;
-      }
-
-      const lock = checkChannelLock(message.guild.id, "djoin", message.channel.id);
-      if (lock) {
-        await message.reply({ embeds: [E.channelLockedEmbed(lock, "djoin")] });
-        return;
-      }
-
-      const serverId = args[0];
-      let amount: number | undefined = args[1] ? parseInt(args[1], 10) : undefined;
-      if (amount !== undefined && (isNaN(amount) || amount < 1)) {
-        await message.reply("❌ Amount must be a positive number. Example: `!djoin 123456789 10`");
-        return;
-      }
-
-      // Non-owners are capped by their tier limit
-      if (!isOwner) {
-        const guildTiers = readRoleLimits()[message.guild.id] ?? {};
-        let tierLimit = 2;
-        for (const [roleId, limit] of Object.entries(guildTiers)) {
-          if (member?.roles.cache.has(roleId) && (limit as number) > tierLimit) {
-            tierLimit = limit as number;
-          }
-        }
-        if (amount === undefined || amount > tierLimit) {
-          amount = tierLimit;
-        }
-      }
-
-      // Check cooldown
-      const cooldownRemaining = checkCooldown(userId, serverId);
-      if (cooldownRemaining > 0) {
-        const secs = Math.ceil(cooldownRemaining / 1000);
-        await message.reply({ embeds: [
-          new EmbedBuilder()
-            .setTitle("⏳ Cooldown Active")
-            .setDescription(`You must wait **${secs}s** before using \`!djoin\` on this server again.\n\nCooldown: **${DJOIN_COOLDOWN_MS / 1000}s** per user and per server.`)
-            .setColor(COLOR.yellow)
-            .setFooter({ text: "Memberk" }),
-        ]});
-        return;
-      }
-
-      // Check if a job is already running for this server
-      if (isJobRunning(serverId)) {
-        await message.reply({ embeds: [
-          new EmbedBuilder()
-            .setTitle("⚠️ Already Running")
-            .setDescription(`A djoin is already in progress for server \`${serverId}\`. Use \`!checkqueue\` to check status.`)
-            .setColor(COLOR.yellow)
-            .setFooter({ text: "Memberk" }),
-        ]});
-        return;
-      }
-
-      const targetGuild = client.guilds.cache.get(serverId);
-      const serverName = targetGuild?.name ?? serverId;
-      const stockCount = readAuthUsers().length;
-
-      startDjoinJob({
-        serverId,
-        serverName,
-        requestedBy: userId,
-        startedAt: new Date(),
-        total: amount ?? stockCount,
-        done: 0,
-        status: "running",
-      });
-      setCooldown(userId, serverId);
-
-      const progress = await message.reply("⏳ Starting mass join…");
-      let lastDone = 0;
-      const e = await doMassJoin(serverId, client, async (txt) => {
-        try {
-          await progress.edit({ content: txt });
-          const match = txt.match(/(\d+)\//);
-          if (match) {
-            lastDone = parseInt(match[1], 10);
-            updateDjoinJob(serverId, lastDone, amount ?? stockCount);
-          }
-        } catch {
-          /* noop */
-        }
-      }, amount);
-      finishDjoinJob(serverId, e ? "done" : "failed");
-      if (e) await progress.edit({ content: "", embeds: [e] });
 
     } else if (cmd === "setrestock") {
         const template = args.join(" ").trim();
