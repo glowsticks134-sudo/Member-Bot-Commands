@@ -97,6 +97,60 @@ export async function startBot4(): Promise<void> {
         return;
       }
 
+      // ── ?4restock ── owner only — paste tokens or attach a .txt file ─────
+      if (cmd === "4restock") {
+        if (!isOwner) {
+          await message.reply({ embeds: [denyEmbed()] }).catch(() => {});
+          return;
+        }
+
+        // Collect tokens from inline text and/or an attached .txt file
+        const rawInline = message.content.slice(PREFIX.length + "4restock".length).trim();
+        let rawText = rawInline;
+
+        const attachment = message.attachments.first();
+        if (attachment && attachment.name?.endsWith(".txt")) {
+          try {
+            const res = await fetch(attachment.url);
+            const fileText = await res.text();
+            rawText = rawInline ? `${rawInline}\n${fileText}` : fileText;
+          } catch {
+            await message.reply("❌ Could not read the attached file.").catch(() => {});
+            return;
+          }
+        }
+
+        const tokens = rawText
+          .split(/[\s,]+/)
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+        if (tokens.length === 0) {
+          await message.reply(
+            `Usage: \`${PREFIX}4restock <token1> <token2> …\`\nYou can also attach a \`.txt\` file with one token per line.`,
+          );
+          return;
+        }
+
+        const added = insertTokens(tokens);
+        const total = poolSize();
+        await message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("📦 Restock Complete")
+              .setColor(COLOR.green)
+              .addFields(
+                { name: "Added", value: String(added), inline: true },
+                { name: "Skipped (duplicates)", value: String(tokens.length - added), inline: true },
+                { name: "Pool Total", value: String(total), inline: true },
+              )
+              .setFooter({ text: "Bot 4 — Token Distributor" })
+              .setTimestamp(),
+          ],
+        });
+        return;
+      }
+
       // ── ?generate ── public ───────────────────────────────────────────────
       if (cmd === "generate") {
         // Determine how many tokens this user gets based on their highest role tier
@@ -268,6 +322,7 @@ export async function startBot4(): Promise<void> {
                       {
                         name: "🔒 Owner Only",
                         value:
+                          `\`${PREFIX}4restock <tokens…>\` — restock pool (paste or attach .txt)\n` +
                           `\`${PREFIX}insert <tokens…>\` — add tokens to the pool\n` +
                           `\`${PREFIX}tokencount\` — see pool size\n` +
                           `\`${PREFIX}clearpool\` — wipe the pool`,
