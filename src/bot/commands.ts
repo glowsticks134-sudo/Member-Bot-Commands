@@ -1110,7 +1110,8 @@ export async function handleSlash(
         return;
       }
       const msg = await i.channel.send({ embeds: [E.stockEmbed()] });
-      state.liveMessages.set("stock", { channelId: msg.channelId, messageId: msg.id });
+      const { setLiveMessage } = await import("../storage/liveMessages.js");
+      setLiveMessage(state.liveMessages, "stock", { channelId: msg.channelId, messageId: msg.id });
       await i.reply({
         content: "✅ Live stock embed posted (refreshes every 30s).",
         ephemeral: true,
@@ -1126,7 +1127,8 @@ export async function handleSlash(
       const msg = await i.channel.send({
         embeds: [E.statusEmbed(client, state.botStartTime)],
       });
-      state.liveMessages.set("status", { channelId: msg.channelId, messageId: msg.id });
+      const { setLiveMessage: setLiveMsg } = await import("../storage/liveMessages.js");
+      setLiveMsg(state.liveMessages, "status", { channelId: msg.channelId, messageId: msg.id });
       await i.reply({
         content: "✅ Live status embed posted (refreshes every 30s).",
         ephemeral: true,

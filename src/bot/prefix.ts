@@ -302,7 +302,8 @@ export async function handlePrefix(
     } else if (cmd === "stock") {
       // Post a live auto-updating stock embed
       const sent = await message.reply({ embeds: [E.stockEmbed()] });
-      state.liveMessages.set("stock", {
+      const { setLiveMessage } = await import("../storage/liveMessages.js");
+      setLiveMessage(state.liveMessages, "stock", {
         channelId: sent.channelId,
         messageId: sent.id,
       });

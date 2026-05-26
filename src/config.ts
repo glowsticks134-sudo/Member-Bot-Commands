@@ -75,6 +75,7 @@ export const SCHEDULED_RESTOCKS_FILE = path.join(
 );
 export const DAILY_RESTOCK_FILE = path.join(DATA_DIR, "daily_restock.json");
 export const SUBSCRIBERS_DB = path.join(DATA_DIR, "subscribers.sqlite3");
+export const LIVE_MESSAGES_FILE = path.join(DATA_DIR, "live_messages.json");
 
 export const COLOR = {
   blurple: 0x5865f2,

@@ -13,6 +13,7 @@ import { readChannelLocks } from "../storage/locks.js";
 import { readAuthUsers } from "../storage/tokens.js";
 import { getRestockTemplate, renderRestockTemplate } from "../storage/restockTemplate.js";
 import type { BotState } from "./client.js";
+import { deleteLiveMessage } from "../storage/liveMessages.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 const MIN_MS = 60 * 1000;
@@ -127,7 +128,7 @@ async function liveEmbedTick(client: Client, state: BotState): Promise<void> {
     try {
       const ch = (await client.channels.fetch(ref.channelId)) as TextChannel | null;
       if (!ch || !ch.isTextBased()) {
-        state.liveMessages.delete(type);
+        deleteLiveMessage(state.liveMessages, type);
         continue;
       }
       const msg = await ch.messages.fetch(ref.messageId);
@@ -135,7 +136,7 @@ async function liveEmbedTick(client: Client, state: BotState): Promise<void> {
         type === "stock" ? stockEmbed() : statusEmbed(client, state.botStartTime);
       await msg.edit({ embeds: [embed] });
     } catch {
-      state.liveMessages.delete(type);
+      deleteLiveMessage(state.liveMessages, type);
     }
   }
 }

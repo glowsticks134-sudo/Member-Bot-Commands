@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 
 import { BOT_TOKEN, OWNER_PASSWORD, SUPER_OWNER_PASSWORD } from "../config.js";
+import { readLiveMessages } from "../storage/liveMessages.js";
 import { grantPendingToken } from "./session.js";
 import { botStatus } from "../botStatus.js";
 import { dbInit } from "../storage/subscribers.js";
@@ -57,6 +58,12 @@ export function makeBot(): { client: Client; state: BotState } {
     botStatus.connectedAt = new Date();
     state.botStartTime = new Date();
     dbInit();
+    // Restore live message refs from disk so updates survive restarts
+    const persisted = readLiveMessages();
+    for (const [k, v] of persisted.entries()) {
+      state.liveMessages.set(k, v);
+    }
+    console.log(`[live-embeds] restored ${persisted.size} live message ref(s) from disk`);
     for (const g of c.guilds.cache.values()) {
       if (!state.serverJoinTimes.has(g.id)) {
         state.serverJoinTimes.set(g.id, new Date());
