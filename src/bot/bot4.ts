@@ -296,6 +296,45 @@ export async function startBot4(): Promise<void> {
         return;
       }
 
+      // ── ?how2use ── public — sends a how-to-use embed ────────────────────
+      if (cmd === "how2use") {
+        await message.channel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("📖 How to Use Bot 4 — Token Distributor")
+              .setColor(COLOR.blurple)
+              .setDescription("Follow the steps below to claim your tokens from the pool.")
+              .addFields(
+                {
+                  name: "Step 1 — Check your role",
+                  value: "Your role determines how many tokens you can claim per request. Higher roles get more tokens.",
+                },
+                {
+                  name: "Step 2 — Run the claim command",
+                  value: `Type \`${PREFIX}generate\` in this channel to claim your tokens. They will be sent to your **DMs**.`,
+                },
+                {
+                  name: "Step 3 — Enable DMs",
+                  value: "Make sure you have **Allow direct messages from server members** enabled.\n*(Server Settings → Privacy Settings)*",
+                },
+                {
+                  name: "Step 4 — Check your DMs",
+                  value: "You will receive a DM with your tokens listed. Keep them safe!",
+                },
+                {
+                  name: "Other commands",
+                  value:
+                    `\`${PREFIX}myclaimcount\` — see how many tokens you've claimed in total\n` +
+                    `\`${PREFIX}livestock\` — view the current stock snapshot`,
+                },
+              )
+              .setFooter({ text: "Bot 4 — Token Distributor" })
+              .setTimestamp(),
+          ],
+        });
+        return;
+      }
+
       // ── ?livestock ── posts a stock snapshot embed ───────────────────────
       if (cmd === "livestock") {
         const channel = message.channel as TextChannel;
@@ -317,7 +356,8 @@ export async function startBot4(): Promise<void> {
                   value:
                     `\`${PREFIX}generate\` — claim tokens to your DMs based on your role\n` +
                     `\`${PREFIX}myclaimcount\` — see how many you've claimed total\n` +
-                    `\`${PREFIX}livestock\` — post the current stock snapshot`,
+                    `\`${PREFIX}livestock\` — post the current stock snapshot\n` +
+                    `\`${PREFIX}how2use\` — post a step-by-step guide embed`,
                 },
                 ...(isOwner || isHardcoded
                   ? [
