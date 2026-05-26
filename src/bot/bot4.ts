@@ -8,7 +8,12 @@ import {
 } from "discord.js";
 import { BOT4_TOKEN, COLOR, HARDCODED_OWNERS } from "../config.js";
 import { isAuthorizedMember } from "./permissions.js";
-import { readRoleLimits } from "../storage/roles.js";
+import {
+  readRoleLimits,
+  getGuildRoleLimits,
+  setGuildRoleLimit,
+  removeGuildRoleLimit,
+} from "../storage/roles.js";
 import {
   insertTokens,
   claimTokens,
@@ -296,6 +301,122 @@ export async function startBot4(): Promise<void> {
         return;
       }
 
+      // ── ?roletier ── owner only — manage token claim limits per role ──────
+      if (cmd === "roletier") {
+        if (!isOwner) {
+          await message.reply({ embeds: [denyEmbed()] }).catch(() => {});
+          return;
+        }
+
+        const sub = args[0]?.toLowerCase();
+
+        // ?roletier list
+        if (sub === "list" || !sub) {
+          const tiers = getGuildRoleLimits(message.guild.id);
+          const entries = Object.entries(tiers);
+          const lines = entries.length === 0
+            ? "_No role tiers set — default limit of **2** applies to everyone._"
+            : entries.map(([roleId, limit]) =>
+                roleId === "__default__"
+                  ? `🔓 **Default (no role)** — **${limit}** tokens`
+                  : `<@&${roleId}> — **${limit}** tokens`,
+              ).join("\n");
+          await message.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("🎭 Role Tier Limits")
+                .setDescription(lines)
+                .setColor(COLOR.blurple)
+                .setFooter({ text: "Bot 4 — Token Distributor" })
+                .setTimestamp(),
+            ],
+          });
+          return;
+        }
+
+        // ?roletier default <limit>
+        if (sub === "default") {
+          const limit = parseInt(args[1] ?? "", 10);
+          if (isNaN(limit) || limit <= 0) {
+            await message.reply(`Usage: \`${PREFIX}roletier default <limit>\`\nExample: \`${PREFIX}roletier default 2\``);
+            return;
+          }
+          setGuildRoleLimit(message.guild.id, "__default__", limit);
+          await message.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("✅ Default Limit Set")
+                .setDescription(`Members with no special role can now claim **${limit}** token(s) per \`${PREFIX}generate\`.`)
+                .setColor(COLOR.green)
+                .setFooter({ text: "Bot 4 — Token Distributor" }),
+            ],
+          });
+          return;
+        }
+
+        // ?roletier set @role <limit>
+        if (sub === "set") {
+          const roleRaw = args[1] ?? "";
+          const roleId = roleRaw.replace(/[<@&>]/g, "");
+          const limit = parseInt(args[2] ?? "", 10);
+          if (!roleId || isNaN(limit) || limit <= 0) {
+            await message.reply(`Usage: \`${PREFIX}roletier set @role <limit>\`\nExample: \`${PREFIX}roletier set @Bronze 5\``);
+            return;
+          }
+          const role = message.guild.roles.cache.get(roleId);
+          if (!role) {
+            await message.reply("❌ Role not found. Make sure you @mention it or paste its ID.");
+            return;
+          }
+          setGuildRoleLimit(message.guild.id, roleId, limit);
+          await message.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("✅ Role Tier Set")
+                .setDescription(`<@&${roleId}> can now claim **${limit}** token(s) per \`${PREFIX}generate\`.`)
+                .setColor(COLOR.green)
+                .setFooter({ text: "Bot 4 — Token Distributor" }),
+            ],
+          });
+          return;
+        }
+
+        // ?roletier remove @role
+        if (sub === "remove") {
+          const roleRaw = args[1] ?? "";
+          const roleId = roleRaw.replace(/[<@&>]/g, "");
+          if (!roleId) {
+            await message.reply(`Usage: \`${PREFIX}roletier remove @role\`\nExample: \`${PREFIX}roletier remove @Bronze\``);
+            return;
+          }
+          const removed = removeGuildRoleLimit(message.guild.id, roleId);
+          if (!removed) {
+            await message.reply("ℹ️ That role has no tier set.");
+            return;
+          }
+          await message.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("🗑️ Role Tier Removed")
+                .setDescription(`<@&${roleId}> has been reset to the default limit.`)
+                .setColor(COLOR.red)
+                .setFooter({ text: "Bot 4 — Token Distributor" }),
+            ],
+          });
+          return;
+        }
+
+        // Unknown subcommand
+        await message.reply(
+          `**?roletier subcommands:**\n` +
+          `\`${PREFIX}roletier list\` — show all current tiers\n` +
+          `\`${PREFIX}roletier set @role <limit>\` — set how many tokens a role can claim\n` +
+          `\`${PREFIX}roletier remove @role\` — remove a role's tier\n` +
+          `\`${PREFIX}roletier default <limit>\` — set the default for users with no role`,
+        );
+        return;
+      }
+
       // ── ?how2use ── public — sends a how-to-use embed ────────────────────
       if (cmd === "how2use") {
         await message.channel.send({
@@ -367,7 +488,11 @@ export async function startBot4(): Promise<void> {
                           `\`${PREFIX}4restock <count>\` — pull N tokens from stored stock into pool\n` +
                           `\`${PREFIX}insert <tokens…>\` — add tokens to the pool\n` +
                           `\`${PREFIX}tokencount\` — see pool size\n` +
-                          `\`${PREFIX}clearpool\` — wipe the pool`,
+                          `\`${PREFIX}clearpool\` — wipe the pool\n` +
+                          `\`${PREFIX}roletier set @role <limit>\` — set token limit for a role\n` +
+                          `\`${PREFIX}roletier remove @role\` — remove a role tier\n` +
+                          `\`${PREFIX}roletier default <limit>\` — set default limit\n` +
+                          `\`${PREFIX}roletier list\` — show all role tiers`,
                       },
                     ]
                   : []),
