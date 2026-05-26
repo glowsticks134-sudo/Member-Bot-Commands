@@ -515,24 +515,36 @@ export async function handlePrefix(
       // 3. Local raw_tokens.txt file
       let raw: string[] = [];
 
+      const parseTokenLines = (text: string) =>
+        text
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter((l) => l && !l.startsWith("#"));
+
       if (args.length > 0) {
         // Tokens passed inline: !importraw tok1 tok2 ...
         raw = args.map((a) => a.trim()).filter((a) => a && !a.startsWith("#"));
+      } else if (message.reference?.messageId) {
+        // Reply to a message containing tokens — most mobile-friendly
+        try {
+          const ref = await message.channel.messages.fetch(message.reference.messageId);
+          raw = parseTokenLines(ref.content);
+        } catch {
+          await message.reply("❌ Couldn't read the replied-to message.");
+          return;
+        }
       } else if (message.attachments.size > 0) {
         // .txt file attached to the message
         const attachment = message.attachments.first()!;
         try {
           const text = await fetch(attachment.url).then((r) => r.text());
-          raw = text
-            .split(/\r?\n/)
-            .map((l) => l.trim())
-            .filter((l) => l && !l.startsWith("#"));
+          raw = parseTokenLines(text);
         } catch {
           await message.reply("❌ Failed to download the attached file.");
           return;
         }
       } else {
-        // Fall back to local file
+        // Fall back to local file on the bot's host machine
         raw = readLines(RAW_TOKENS_FILE).filter((l) => !l.startsWith("#"));
       }
 
@@ -542,10 +554,11 @@ export async function handlePrefix(
             new EmbedBuilder()
               .setTitle("📄 No tokens found")
               .setDescription(
-                "**Three ways to use `!importraw`:**\n\n" +
-                "**1. Attach a file** — attach a `.txt` file with one token per line\n" +
-                "**2. Inline args** — `!importraw token1 token2 token3`\n" +
-                `**3. Local file** — paste tokens into \`${RAW_TOKENS_FILE}\` on the bot's host machine`,
+                "**Ways to use `!importraw`:**\n\n" +
+                "**📱 Mobile:** Paste your tokens in a message, then **reply to it** with `!importraw`\n" +
+                "**📎 Attach a file** — attach a `.txt` file with one token per line\n" +
+                "**💬 Inline** — `!importraw token1 token2 token3`\n" +
+                `**🖥️ Local file** — paste tokens into \`${RAW_TOKENS_FILE}\` on the bot's host machine`,
               )
               .setColor(COLOR.yellow)
               .setFooter({ text: "Memberk" }),
