@@ -226,13 +226,15 @@ export async function doMassJoin(
     let result = await addUserToGuild(u.userId, token, serverId);
 
     if (result.startsWith("error:") || result === "rate_limit") {
-      // Try refresh once
-      const r = await refreshToken(u.refreshToken);
-      if (r.ok) {
-        token = r.data.access_token;
-        u.accessToken = token;
-        u.refreshToken = r.data.refresh_token;
-        result = await addUserToGuild(u.userId, token, serverId);
+      // Try refresh once — skip if no refresh token available
+      if (u.refreshToken) {
+        const r = await refreshToken(u.refreshToken);
+        if (r.ok) {
+          token = r.data.access_token;
+          u.accessToken = token;
+          u.refreshToken = r.data.refresh_token;
+          result = await addUserToGuild(u.userId, token, serverId);
+        }
       }
     }
 

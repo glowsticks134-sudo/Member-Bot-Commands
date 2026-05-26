@@ -1,6 +1,6 @@
 import { EmbedBuilder, PermissionFlagsBits, OverwriteType, type Client, type Message } from "discord.js";
-import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX } from "../config.js";
-import { exchangeCode } from "../oauth.js";
+import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX, RAW_TOKENS_FILE } from "../config.js";
+import { exchangeCode, fetchOAuthUserId } from "../oauth.js";
 import { saveUserAuth, appendAuthUser, readAuthUsers, readStoredTokens } from "../storage/tokens.js";
 import { dbCount, dbList } from "../storage/subscribers.js";
 import { checkChannelLock, readChannelLocks, setChannelLock, clearChannelLock, type LockType } from "../storage/locks.js";
@@ -39,6 +39,7 @@ const OWNER_PREFIX_CMDS = new Set([
   "set_daily_restock", "cancel_daily_restock", "daily_restock_status",
   "setup_subscribe", "announce",
   "setrestock", "resetrestock", "showrestock", "storedtokens", "cleartiers",
+  "importraw",
 ]);
 
 export async function handlePrefix(
@@ -505,6 +506,69 @@ export async function handlePrefix(
             .setFooter({ text: "Memberk" }),
         ]});
       }
+
+    } else if (cmd === "importraw") {
+      // Read raw_tokens.txt, look up userId for each token, save to stored_tokens
+      const { readLines } = await import("../storage/files.js");
+      const raw = readLines(RAW_TOKENS_FILE).filter((l) => !l.startsWith("#"));
+      if (raw.length === 0) {
+        await message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("📄 raw_tokens.txt is empty")
+              .setDescription(
+                "Paste your tokens (one per line) into `artifacts/data/raw_tokens.txt` then run `!importraw` again.",
+              )
+              .setColor(COLOR.yellow)
+              .setFooter({ text: "Memberk" }),
+          ],
+        });
+        return;
+      }
+      const progress = await message.reply(`⏳ Looking up user IDs for **${raw.length}** token(s)…`);
+      let saved = 0;
+      let failed = 0;
+      for (const token of raw) {
+        try {
+          const userId = await fetchOAuthUserId(token);
+          if (userId) {
+            saveUserAuth(userId, token, "");
+            saved++;
+          } else {
+            failed++;
+          }
+        } catch {
+          failed++;
+        }
+        await new Promise((r) => setTimeout(r, 200)); // gentle rate limiting
+      }
+      // Clear the file after import
+      const fs = await import("node:fs");
+      fs.writeFileSync(RAW_TOKENS_FILE,
+        "# Paste your raw access tokens here — one per line.\n" +
+        "# Then run !importraw in Discord (owners only).\n" +
+        "# Lines starting with # are ignored. Blank lines are ignored.\n",
+        "utf8",
+      );
+      await progress.edit({
+        content: "",
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("✅ Raw Token Import Complete")
+            .setColor(saved > 0 ? COLOR.green : COLOR.red)
+            .addFields(
+              { name: "✅ Imported", value: String(saved), inline: true },
+              { name: "❌ Failed", value: String(failed), inline: true },
+              { name: "📋 Total", value: String(raw.length), inline: true },
+            )
+            .setDescription(
+              saved > 0
+                ? `**${saved}** token(s) saved to stored tokens. Run \`!restock\` to move them into active stock for \`!djoin\`.`
+                : "No tokens could be imported. They may be expired or invalid.",
+            )
+            .setFooter({ text: "Memberk • raw_tokens.txt has been cleared" }),
+        ],
+      });
 
     } else if (cmd === "subscribers") {
       const n = dbCount(message.guild.id);

@@ -79,6 +79,7 @@ export const SUBSCRIBERS_DB = path.join(DATA_DIR, "subscribers.sqlite3");
 export const LIVE_MESSAGES_FILE = path.join(DATA_DIR, "live_messages.json");
 export const CUSTOM_TOKENS_FILE = path.join(DATA_DIR, "custom_tokens.txt");
 export const CUSTOM_TOKENS_CLAIMED_FILE = path.join(DATA_DIR, "custom_tokens_claimed.json");
+export const RAW_TOKENS_FILE = path.join(DATA_DIR, "raw_tokens.txt");
 
 export const COLOR = {
   blurple: 0x5865f2,
