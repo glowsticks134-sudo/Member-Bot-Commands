@@ -805,16 +805,42 @@ export async function handlePrefix(
         await message.channel.send({ embeds: [e] });
 
       } else if (cmd === "add_token") {
-        const raw = message.content.slice(PREFIX.length + "add_token".length).trim();
-        if (!raw) {
-          await message.reply(
-            "Usage: `!add_token userId,accessToken,refreshToken`\n" +
-            "Example: `!add_token 123456789,access_token_here,refresh_token_here`",
-          );
+        const token = args[0]?.trim();
+        if (!token) {
+          await message.reply("Usage: `!add_token <access_token>`");
           return;
         }
-        const e = await doAddToken(raw);
-        await message.reply({ embeds: [e] });
+        const looking = await message.reply("⏳ Looking up user…");
+        const foundId = await fetchOAuthUserId(token);
+        if (!foundId) {
+          await looking.edit({ content: "❌ Invalid or expired token — could not fetch user from Discord." });
+          return;
+        }
+        const existing = readAuthUsers();
+        if (existing.some((u) => u.userId === foundId)) {
+          await looking.edit({
+            content: "",
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("ℹ️ Already in Stock")
+                .setDescription(`<@${foundId}> is already in bulk stock.`)
+                .setColor(COLOR.yellow)
+                .setFooter({ text: "Memberk" }),
+            ],
+          });
+          return;
+        }
+        appendAuthUser({ userId: foundId, accessToken: token, refreshToken: "" });
+        await looking.edit({
+          content: "",
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("✅ Token Added")
+              .setDescription(`<@${foundId}> has been added to bulk stock.`)
+              .setColor(COLOR.green)
+              .setFooter({ text: "Memberk" }),
+          ],
+        });
 
       } else if (cmd === "removestock") {
         const current = readAuthUsers();
