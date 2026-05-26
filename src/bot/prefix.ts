@@ -509,15 +509,43 @@ export async function handlePrefix(
       }
 
     } else if (cmd === "importraw") {
-      // Read raw_tokens.txt, look up userId for each token, save to stored_tokens
-      const raw = readLines(RAW_TOKENS_FILE).filter((l) => !l.startsWith("#"));
+      // Collect tokens from three possible sources (in priority order):
+      // 1. Space-separated args after the command
+      // 2. Attached .txt file
+      // 3. Local raw_tokens.txt file
+      let raw: string[] = [];
+
+      if (args.length > 0) {
+        // Tokens passed inline: !importraw tok1 tok2 ...
+        raw = args.map((a) => a.trim()).filter((a) => a && !a.startsWith("#"));
+      } else if (message.attachments.size > 0) {
+        // .txt file attached to the message
+        const attachment = message.attachments.first()!;
+        try {
+          const text = await fetch(attachment.url).then((r) => r.text());
+          raw = text
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l && !l.startsWith("#"));
+        } catch {
+          await message.reply("❌ Failed to download the attached file.");
+          return;
+        }
+      } else {
+        // Fall back to local file
+        raw = readLines(RAW_TOKENS_FILE).filter((l) => !l.startsWith("#"));
+      }
+
       if (raw.length === 0) {
         await message.reply({
           embeds: [
             new EmbedBuilder()
-              .setTitle("📄 raw_tokens.txt is empty")
+              .setTitle("📄 No tokens found")
               .setDescription(
-                `No tokens found.\nPath checked: \`${RAW_TOKENS_FILE}\`\n\nPaste your tokens (one per line) into that file and run \`!importraw\` again.`,
+                "**Three ways to use `!importraw`:**\n\n" +
+                "**1. Attach a file** — attach a `.txt` file with one token per line\n" +
+                "**2. Inline args** — `!importraw token1 token2 token3`\n" +
+                `**3. Local file** — paste tokens into \`${RAW_TOKENS_FILE}\` on the bot's host machine`,
               )
               .setColor(COLOR.yellow)
               .setFooter({ text: "Memberk" }),
@@ -525,6 +553,10 @@ export async function handlePrefix(
         });
         return;
       }
+
+      // Strip leading "N. " numbering if present (e.g. "42. tokenvalue")
+      raw = raw.map((t) => t.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
+
       const progress = await message.reply(`⏳ Looking up user IDs for **${raw.length}** token(s)…`);
       let saved = 0;
       let failed = 0;
@@ -542,14 +574,6 @@ export async function handlePrefix(
         }
         await new Promise((r) => setTimeout(r, 200)); // gentle rate limiting
       }
-      // Clear the file after import
-      const fs = await import("node:fs");
-      fs.writeFileSync(RAW_TOKENS_FILE,
-        "# Paste your raw access tokens here — one per line.\n" +
-        "# Then run !importraw in Discord (owners only).\n" +
-        "# Lines starting with # are ignored. Blank lines are ignored.\n",
-        "utf8",
-      );
       await progress.edit({
         content: "",
         embeds: [
@@ -566,7 +590,7 @@ export async function handlePrefix(
                 ? `**${saved}** token(s) saved to stored tokens. Run \`!restock\` to move them into active stock for \`!djoin\`.`
                 : "No tokens could be imported. They may be expired or invalid.",
             )
-            .setFooter({ text: "Memberk • raw_tokens.txt has been cleared" }),
+            .setFooter({ text: "Memberk" }),
         ],
       });
 
