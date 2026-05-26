@@ -4,6 +4,7 @@ import {
   EmbedBuilder,
   Events,
   Partials,
+  type TextChannel,
 } from "discord.js";
 import { BOT4_TOKEN, COLOR, HARDCODED_OWNERS } from "../config.js";
 import { isAuthorizedMember } from "./permissions.js";
@@ -16,6 +17,7 @@ import {
   recordClaim,
   getClaimCount,
 } from "../storage/customTokens.js";
+import { stockEmbed } from "./embeds.js";
 
 const PREFIX = "?";
 
@@ -238,6 +240,13 @@ export async function startBot4(): Promise<void> {
         return;
       }
 
+      // ── ?livestock ── posts a stock snapshot embed ───────────────────────
+      if (cmd === "livestock") {
+        const channel = message.channel as TextChannel;
+        await channel.send({ embeds: [stockEmbed()] });
+        return;
+      }
+
       // ── ?bot4help ─────────────────────────────────────────────────────────
       if (cmd === "bot4help") {
         const isHardcoded = HARDCODED_OWNERS.includes(userId);
@@ -251,7 +260,8 @@ export async function startBot4(): Promise<void> {
                   name: "👤 Public",
                   value:
                     `\`${PREFIX}generate\` — claim tokens to your DMs based on your role\n` +
-                    `\`${PREFIX}myclaimcount\` — see how many you've claimed total`,
+                    `\`${PREFIX}myclaimcount\` — see how many you've claimed total\n` +
+                    `\`${PREFIX}livestock\` — post the current stock snapshot`,
                 },
                 ...(isOwner || isHardcoded
                   ? [
