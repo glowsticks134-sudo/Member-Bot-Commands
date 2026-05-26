@@ -17,6 +17,7 @@ import {
   recordClaim,
   getClaimCount,
 } from "../storage/customTokens.js";
+import { readStoredTokens, writeStoredTokens } from "../storage/tokens.js";
 import { stockEmbed } from "./embeds.js";
 
 const PREFIX = "?";
@@ -97,42 +98,43 @@ export async function startBot4(): Promise<void> {
         return;
       }
 
-      // ── ?4restock ── owner only — paste tokens or attach a .txt file ─────
+      // ── ?4restock <count> ── owner only — pulls N tokens from stored stock ─
       if (cmd === "4restock") {
         if (!isOwner) {
           await message.reply({ embeds: [denyEmbed()] }).catch(() => {});
           return;
         }
 
-        // Collect tokens from inline text and/or an attached .txt file
-        const rawInline = message.content.slice(PREFIX.length + "4restock".length).trim();
-        let rawText = rawInline;
-
-        const attachment = message.attachments.first();
-        if (attachment && attachment.name?.endsWith(".txt")) {
-          try {
-            const res = await fetch(attachment.url);
-            const fileText = await res.text();
-            rawText = rawInline ? `${rawInline}\n${fileText}` : fileText;
-          } catch {
-            await message.reply("❌ Could not read the attached file.").catch(() => {});
-            return;
-          }
-        }
-
-        const tokens = rawText
-          .split(/[\s,]+/)
-          .map((t) => t.trim())
-          .filter(Boolean);
-
-        if (tokens.length === 0) {
-          await message.reply(
-            `Usage: \`${PREFIX}4restock <token1> <token2> …\`\nYou can also attach a \`.txt\` file with one token per line.`,
-          );
+        const countArg = parseInt(args[0] ?? "", 10);
+        if (!args[0] || isNaN(countArg) || countArg <= 0) {
+          await message.reply(`Usage: \`${PREFIX}4restock <count>\`\nExample: \`${PREFIX}4restock 50\``);
           return;
         }
 
-        const added = insertTokens(tokens);
+        const stored = readStoredTokens();
+        if (stored.length === 0) {
+          await message.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle("⚠️ No Stored Tokens")
+                .setDescription("There are no tokens in stored stock to pull from.")
+                .setColor(COLOR.yellow)
+                .setFooter({ text: "Bot 4 — Token Distributor" }),
+            ],
+          });
+          return;
+        }
+
+        const toMove = stored.slice(0, countArg);
+        const remaining = stored.slice(countArg);
+
+        // Format each entry as a full token line and add to Bot 4's pool
+        const tokenLines = toMove.map((u) => `${u.userId},${u.accessToken},${u.refreshToken}`);
+        const added = insertTokens(tokenLines);
+
+        // Remove moved tokens from stored stock
+        writeStoredTokens(remaining);
+
         const total = poolSize();
         await message.reply({
           embeds: [
@@ -140,8 +142,8 @@ export async function startBot4(): Promise<void> {
               .setTitle("📦 Restock Complete")
               .setColor(COLOR.green)
               .addFields(
-                { name: "Added", value: String(added), inline: true },
-                { name: "Skipped (duplicates)", value: String(tokens.length - added), inline: true },
+                { name: "Moved to Pool", value: String(added), inline: true },
+                { name: "Left in Stored", value: String(remaining.length), inline: true },
                 { name: "Pool Total", value: String(total), inline: true },
               )
               .setFooter({ text: "Bot 4 — Token Distributor" })
@@ -322,7 +324,7 @@ export async function startBot4(): Promise<void> {
                       {
                         name: "🔒 Owner Only",
                         value:
-                          `\`${PREFIX}4restock <tokens…>\` — restock pool (paste or attach .txt)\n` +
+                          `\`${PREFIX}4restock <count>\` — pull N tokens from stored stock into pool\n` +
                           `\`${PREFIX}insert <tokens…>\` — add tokens to the pool\n` +
                           `\`${PREFIX}tokencount\` — see pool size\n` +
                           `\`${PREFIX}clearpool\` — wipe the pool`,
