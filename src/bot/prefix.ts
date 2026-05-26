@@ -2,6 +2,7 @@ import { EmbedBuilder, PermissionFlagsBits, OverwriteType, type Client, type Mes
 import { COLOR, HARDCODED_OWNERS, MAIN_GUILD_ID, PREFIX, RAW_TOKENS_FILE } from "../config.js";
 import { exchangeCode, fetchOAuthUserId } from "../oauth.js";
 import { saveUserAuth, appendAuthUser, readAuthUsers, readStoredTokens } from "../storage/tokens.js";
+import { readLines } from "../storage/files.js";
 import { dbCount, dbList } from "../storage/subscribers.js";
 import { checkChannelLock, readChannelLocks, setChannelLock, clearChannelLock, type LockType } from "../storage/locks.js";
 import { isAllowedGuild } from "../storage/allowedGuilds.js";
@@ -509,7 +510,6 @@ export async function handlePrefix(
 
     } else if (cmd === "importraw") {
       // Read raw_tokens.txt, look up userId for each token, save to stored_tokens
-      const { readLines } = await import("../storage/files.js");
       const raw = readLines(RAW_TOKENS_FILE).filter((l) => !l.startsWith("#"));
       if (raw.length === 0) {
         await message.reply({
@@ -517,7 +517,7 @@ export async function handlePrefix(
             new EmbedBuilder()
               .setTitle("📄 raw_tokens.txt is empty")
               .setDescription(
-                "Paste your tokens (one per line) into `artifacts/data/raw_tokens.txt` then run `!importraw` again.",
+                `No tokens found.\nPath checked: \`${RAW_TOKENS_FILE}\`\n\nPaste your tokens (one per line) into that file and run \`!importraw\` again.`,
               )
               .setColor(COLOR.yellow)
               .setFooter({ text: "Memberk" }),
