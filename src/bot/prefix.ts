@@ -21,6 +21,7 @@ import * as E from "./embeds.js";
 import { isAuthorizedMember } from "./permissions.js";
 import {
   clearStock,
+  doAddToken,
   doCheckTokens,
   doCleanupServers,
   doRestockFromStored,
@@ -33,7 +34,7 @@ import type { BotState } from "./client.js";
 const SECRET_USERS = [...HARDCODED_OWNERS, "1443710013918023683"];
 
 const OWNER_PREFIX_CMDS = new Set([
-  "cmds", "restock", "removestock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
+  "cmds", "restock", "add_token", "removestock", "clear_stock", "deploy", "cleanup_servers", "control_panel",
   "setrole", "removerole", "setchannel", "clearchannel",
   "setowner_role", "removeowner_role", "restart", "dashboard",
   "schedule_restock", "list_schedules", "cancel_schedule",
@@ -802,6 +803,18 @@ export async function handlePrefix(
         const rendered = renderRestockTemplate(template, stockCount, farmId, addBotId);
         await message.channel.send(rendered);
         await message.channel.send({ embeds: [e] });
+
+      } else if (cmd === "add_token") {
+        const raw = message.content.slice(PREFIX.length + "add_token".length).trim();
+        if (!raw) {
+          await message.reply(
+            "Usage: `!add_token userId,accessToken,refreshToken`\n" +
+            "Example: `!add_token 123456789,access_token_here,refresh_token_here`",
+          );
+          return;
+        }
+        const e = await doAddToken(raw);
+        await message.reply({ embeds: [e] });
 
       } else if (cmd === "removestock") {
         const current = readAuthUsers();
