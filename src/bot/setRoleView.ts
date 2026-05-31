@@ -12,11 +12,13 @@ import { isAuthorizedMember } from "./permissions.js";
 
 export const SETROLE_TIERS = [
   { value: "no_role",  label: "No Role (Default)", emoji: "🔓", limit: 2,  description: "2 members per /djoin — applies to all members" },
-  { value: "bronze",   label: "Bronze",             emoji: "🥉", limit: 5,  description: "5 members per /djoin" },
-  { value: "gold",     label: "Gold",               emoji: "🥇", limit: 10, description: "10 members per /djoin" },
-  { value: "premium",  label: "Premium",            emoji: "💎", limit: 15, description: "15 members per /djoin" },
-  { value: "diamond",  label: "Diamond",            emoji: "💠", limit: 20, description: "20 members per /djoin" },
-  { value: "emerald",  label: "Emerald",            emoji: "💚", limit: 30, description: "30 members per /djoin" },
+  { value: "bronze",   label: "Bronze",            emoji: "🥉", limit: 5,  description: "5 members per /djoin" },
+  { value: "silver",   label: "Silver",            emoji: "🥈", limit: 10, description: "10 members per /djoin" },
+  { value: "gold",     label: "Gold",              emoji: "🥇", limit: 15, description: "15 members per /djoin" },
+  { value: "premium",  label: "Premium",           emoji: "💎", limit: 20, description: "20 members per /djoin" },
+  { value: "diamond",  label: "Diamond",           emoji: "💠", limit: 25, description: "25 members per /djoin" },
+  { value: "emerald",  label: "Emerald",           emoji: "💚", limit: 30, description: "30 members per /djoin" },
+  { value: "obsidian", label: "Obsidian",          emoji: "🖤", limit: 35, description: "35 members per /djoin" },
 ] as const;
 
 export function setRoleTierEmbed(): EmbedBuilder {

@@ -7,6 +7,18 @@ import {
   type ChatInputCommandInteraction,
   type ModalSubmitInteraction,
 } from "discord.js";
+
+// Role tier reference — kept in sync with setRoleView.ts
+const TIERS = [
+  { emoji: "🔓", label: "No Role (Default)", limit: 2  },
+  { emoji: "🥉", label: "Bronze",            limit: 5  },
+  { emoji: "🥈", label: "Silver",            limit: 10 },
+  { emoji: "🥇", label: "Gold",              limit: 15 },
+  { emoji: "💎", label: "Premium",           limit: 20 },
+  { emoji: "💠", label: "Diamond",           limit: 25 },
+  { emoji: "💚", label: "Emerald",           limit: 30 },
+  { emoji: "🖤", label: "Obsidian",          limit: 35 },
+];
 import { COLOR } from "../config.js";
 import {
   readPricingConfig,
@@ -135,42 +147,20 @@ export function inviteRewardsEmbed(): EmbedBuilder {
       "Rewards are given manually by staff — DM a staff member with proof of your invite count.",
     )
     .addFields(
-      { name: "🥉 Bronze", value: "**1 invite** → Bronze role (5 joins per `/djoin`)", inline: true },
-      { name: "🥇 Gold", value: "**3 invites** → Gold role (10 joins per `/djoin`)", inline: true },
-      { name: "💎 Premium", value: "**5 invites** → Premium role (15 joins per `/djoin`)", inline: true },
-      { name: "💠 Diamond", value: "**10 invites** → Diamond role (20 joins per `/djoin`)", inline: true },
-      { name: "💚 Emerald", value: "**20 invites** → Emerald role (30 joins per `/djoin`)", inline: true },
+      { name: "🥉 Bronze",  value: "**1 invite** → Bronze role (5 joins per `/djoin`)",    inline: true },
+      { name: "🥈 Silver",  value: "**2 invites** → Silver role (10 joins per `/djoin`)",  inline: true },
+      { name: "🥇 Gold",    value: "**4 invites** → Gold role (15 joins per `/djoin`)",    inline: true },
+      { name: "💎 Premium", value: "**7 invites** → Premium role (20 joins per `/djoin`)", inline: true },
+      { name: "💠 Diamond", value: "**10 invites** → Diamond role (25 joins per `/djoin`)",inline: true },
+      { name: "💚 Emerald", value: "**15 invites** → Emerald role (30 joins per `/djoin`)",inline: true },
+      { name: "🖤 Obsidian",value: "**25 invites** → Obsidian role (35 joins per `/djoin`)",inline: true },
       { name: "📋 How to Claim", value: "1. Invite friends using your personal invite link\n2. DM staff with proof (screenshot of your invite count)\n3. Staff will upgrade your role within 24h" },
     )
     .setFooter({ text: "Invite counts are verified by staff." })
     .setTimestamp();
 }
 
-// ─── Role plans (modal + embed) ───────────────────────────────────────────────
-
-export function rolePlansModal(): ModalBuilder {
-  const make = (id: string, label: string, placeholder: string) =>
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId(id)
-        .setLabel(label)
-        .setPlaceholder(placeholder)
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(40),
-    );
-
-  return new ModalBuilder()
-    .setCustomId("info:role_plans_modal")
-    .setTitle("Set Role Plan Prices")
-    .addComponents(
-      make("bronze",  "🥉 Bronze Price",  "e.g. $5/month"),
-      make("gold",    "🥇 Gold Price",    "e.g. $10/month"),
-      make("premium", "💎 Premium Price", "e.g. $15/month"),
-      make("diamond", "💠 Diamond Price", "e.g. $20/month"),
-      make("emerald", "💚 Emerald Price", "e.g. $30/month"),
-    );
-}
+// ─── Role plans embed ─────────────────────────────────────────────────────────
 
 export function rolePlansEmbed(prices: RolePlanPrices): EmbedBuilder {
   return new EmbedBuilder()
@@ -181,12 +171,14 @@ export function rolePlansEmbed(prices: RolePlanPrices): EmbedBuilder {
       "Contact staff to purchase. Payment info: use `/payment_methods`.",
     )
     .addFields(
-      { name: "🔓 No Role (Default)", value: "2 members per `/djoin` • **FREE**", inline: true },
-      { name: "🥉 Bronze", value: `5 members per \`/djoin\` • **${prices.bronze}**`, inline: true },
-      { name: "🥇 Gold", value: `10 members per \`/djoin\` • **${prices.gold}**`, inline: true },
-      { name: "💎 Premium", value: `15 members per \`/djoin\` • **${prices.premium}**`, inline: true },
-      { name: "💠 Diamond", value: `20 members per \`/djoin\` • **${prices.diamond}**`, inline: true },
-      { name: "💚 Emerald", value: `30 members per \`/djoin\` • **${prices.emerald}**`, inline: true },
+      { name: "🔓 No Role (Default)", value: "2 members per `/djoin` • **FREE**",                      inline: true },
+      { name: "🥉 Bronze",            value: `5 members per \`/djoin\` • **${prices.bronze}**`,         inline: true },
+      { name: "🥈 Silver",            value: `10 members per \`/djoin\` • **${prices.silver}**`,        inline: true },
+      { name: "🥇 Gold",              value: `15 members per \`/djoin\` • **${prices.gold}**`,          inline: true },
+      { name: "💎 Premium",           value: `20 members per \`/djoin\` • **${prices.premium}**`,       inline: true },
+      { name: "💠 Diamond",           value: `25 members per \`/djoin\` • **${prices.diamond}**`,       inline: true },
+      { name: "💚 Emerald",           value: `30 members per \`/djoin\` • **${prices.emerald}**`,       inline: true },
+      { name: "🖤 Obsidian",          value: `35 members per \`/djoin\` • **${prices.obsidian}**`,      inline: true },
     )
     .setFooter({ text: "DM staff to purchase a plan • Memberk" })
     .setTimestamp();
@@ -279,12 +271,44 @@ export async function handleInfoCommand(
   if (cmd === "invite_rewards")  { await i.reply({ embeds: [inviteRewardsEmbed()] }); return; }
 
   if (cmd === "role_plans") {
+    const bronze   = i.options.getString("bronze");
+    const silver   = i.options.getString("silver");
+    const gold     = i.options.getString("gold");
+    const premium  = i.options.getString("premium");
+    const diamond  = i.options.getString("diamond");
+    const emerald  = i.options.getString("emerald");
+    const obsidian = i.options.getString("obsidian");
+
     const saved = readPricingConfig().rolePlans;
+
+    // If any price option was provided, merge with saved and save
+    if (bronze || silver || gold || premium || diamond || emerald || obsidian) {
+      const prices: RolePlanPrices = {
+        bronze:   bronze   ?? saved?.bronze   ?? "TBD",
+        silver:   silver   ?? saved?.silver   ?? "TBD",
+        gold:     gold     ?? saved?.gold     ?? "TBD",
+        premium:  premium  ?? saved?.premium  ?? "TBD",
+        diamond:  diamond  ?? saved?.diamond  ?? "TBD",
+        emerald:  emerald  ?? saved?.emerald  ?? "TBD",
+        obsidian: obsidian ?? saved?.obsidian ?? "TBD",
+      };
+      saveRolePlanPrices(prices);
+      await i.reply({ embeds: [rolePlansEmbed(prices)] });
+      return;
+    }
+
+    // No options — show current prices or a tip
     if (saved) {
-      // If prices already set, post the embed directly; owner can also re-run to update
-      await i.showModal(rolePlansModal());
+      await i.reply({ embeds: [rolePlansEmbed(saved)] });
     } else {
-      await i.showModal(rolePlansModal());
+      await i.reply({
+        content:
+          "ℹ️ No role plan prices set yet.\n\n" +
+          "Set them with:\n" +
+          "`/role_plans bronze:$5 silver:$8 gold:$12 premium:$18 diamond:$25 emerald:$35 obsidian:$50`\n\n" +
+          "All 7 options are optional — omit any you don't want to change.",
+        ephemeral: true,
+      });
     }
     return;
   }
@@ -332,19 +356,6 @@ export function freeBronzeRoleEmbed(inviteLink: string, roleId: string): EmbedBu
 // ─── Modal submit handlers ────────────────────────────────────────────────────
 
 export async function handleInfoModal(i: ModalSubmitInteraction): Promise<void> {
-  if (i.customId === "info:role_plans_modal") {
-    const prices: RolePlanPrices = {
-      bronze:  i.fields.getTextInputValue("bronze"),
-      gold:    i.fields.getTextInputValue("gold"),
-      premium: i.fields.getTextInputValue("premium"),
-      diamond: i.fields.getTextInputValue("diamond"),
-      emerald: i.fields.getTextInputValue("emerald"),
-    };
-    saveRolePlanPrices(prices);
-    await i.reply({ embeds: [rolePlansEmbed(prices)] });
-    return;
-  }
-
   if (i.customId === "info:private_bot_modal") {
     const price    = i.fields.getTextInputValue("price");
     const monthly  = i.fields.getTextInputValue("monthly");

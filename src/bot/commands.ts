@@ -108,7 +108,20 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     { name: "howto",           description: "Post a how-to-use guide",                                       type: 1 },
     { name: "payment_methods", description: "Post accepted payment methods",                                  type: 1 },
     { name: "invite_rewards",  description: "Post invite reward tiers",                                      type: 1 },
-    { name: "role_plans",      description: "Set pricing and post the role plans embed (owners only)",        type: 1 },
+    {
+      name: "role_plans",
+      description: "Set pricing and post the role plans embed (owners only)",
+      type: 1,
+      options: [
+        { name: "bronze",   description: "Bronze price (5 members/djoin)",   type: O.String, required: false },
+        { name: "silver",   description: "Silver price (10 members/djoin)",  type: O.String, required: false },
+        { name: "gold",     description: "Gold price (15 members/djoin)",    type: O.String, required: false },
+        { name: "premium",  description: "Premium price (20 members/djoin)", type: O.String, required: false },
+        { name: "diamond",  description: "Diamond price (25 members/djoin)", type: O.String, required: false },
+        { name: "emerald",  description: "Emerald price (30 members/djoin)", type: O.String, required: false },
+        { name: "obsidian", description: "Obsidian price (35 members/djoin)",type: O.String, required: false },
+      ],
+    },
     { name: "private_bot",     description: "Set pricing and post a private bot listing (owners only)",       type: 1 },
 
     // ─── Free Bronze / Status Role ────────────────────────────────────────

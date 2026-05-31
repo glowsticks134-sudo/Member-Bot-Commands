@@ -5,22 +5,24 @@ import { readJson, writeJson } from "./files.js";
 const PRICING_FILE = path.join(DATA_DIR, "pricing_config.json");
 
 export interface RolePlanPrices {
-  bronze: string;
-  gold: string;
-  premium: string;
-  diamond: string;
-  emerald: string;
+  bronze:   string;
+  silver:   string;
+  gold:     string;
+  premium:  string;
+  diamond:  string;
+  emerald:  string;
+  obsidian: string;
 }
 
 export interface PrivateBotPricing {
-  price: string;
-  monthly: string;
+  price:    string;
+  monthly:  string;
   features: string;
-  contact: string;
+  contact:  string;
 }
 
 export interface PricingConfig {
-  rolePlans?: RolePlanPrices;
+  rolePlans?:  RolePlanPrices;
   privateBot?: PrivateBotPricing;
 }
 
