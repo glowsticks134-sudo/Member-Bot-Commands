@@ -11,6 +11,8 @@ import { handleSlash, registerCommandsForGuild } from "./commands.js";
 import { handlePrefix } from "./prefix.js";
 import { startLoops } from "./loops.js";
 import { attachAutoPing } from "./autoping.js";
+import { attachStatusWatcher } from "./statusWatcher.js";
+import { handleInfoModal } from "./infoCommands.js";
 
 export interface LiveMessageRef {
   channelId: string;
@@ -29,6 +31,7 @@ export function makeBot(): { client: Client; state: BotState } {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildPresences,
       GatewayIntentBits.DirectMessages,
     ],
     partials: [Partials.Channel],
@@ -72,6 +75,8 @@ export function makeBot(): { client: Client; state: BotState } {
     try {
       if (interaction.isChatInputCommand()) {
         await handleSlash(interaction, state, client);
+      } else if (interaction.isModalSubmit()) {
+        await handleInfoModal(interaction);
       }
     } catch (e) {
       console.error("[interaction] error", e);
@@ -99,6 +104,7 @@ export function makeBot(): { client: Client; state: BotState } {
   client.on(Events.Error, (e) => console.error("[discord] client error", e));
 
   attachAutoPing(client);
+  attachStatusWatcher(client);
 
   return { client, state };
 }

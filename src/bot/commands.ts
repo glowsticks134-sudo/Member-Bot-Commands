@@ -1,5 +1,6 @@
 import {
   ApplicationCommandOptionType,
+  ChannelType,
   EmbedBuilder,
   REST,
   Routes,
@@ -19,9 +20,17 @@ import {
 import { addAllowedGuild, isAllowedGuild, removeAllowedGuild } from "../storage/allowedGuilds.js";
 import { addBlacklisted, isBlacklisted, removeBlacklisted } from "../storage/blacklist.js";
 import { readStoredTokens } from "../storage/tokens.js";
+import { setBotLogChannel, clearBotLogChannel } from "../storage/botLog.js";
+import {
+  setStatusRoleConfig,
+  getStatusRoleConfig,
+  clearStatusRoleConfig,
+  setLogChannel,
+} from "../storage/statusRoles.js";
 import * as E from "./embeds.js";
 import { isAuthorizedMember } from "./permissions.js";
 import { doCheckTokens, doMassJoin } from "./restock.js";
+import { handleInfoCommand } from "./infoCommands.js";
 import type { BotState } from "./client.js";
 
 const O = ApplicationCommandOptionType;
@@ -91,6 +100,57 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       ],
     },
     { name: "list_allowed_servers", description: "List all allowed servers (super-owner only)", type: 1 },
+
+    // ─── Info / Server embeds ─────────────────────────────────────────────
+    { name: "rules",           description: "Post the server rules embed",                                    type: 1 },
+    { name: "tos",             description: "Post the Terms of Service embed",                                type: 1 },
+    { name: "info",            description: "Post information about Memberk",                                 type: 1 },
+    { name: "howto",           description: "Post a how-to-use guide",                                       type: 1 },
+    { name: "payment_methods", description: "Post accepted payment methods",                                  type: 1 },
+    { name: "invite_rewards",  description: "Post invite reward tiers",                                      type: 1 },
+    { name: "role_plans",      description: "Set pricing and post the role plans embed (owners only)",        type: 1 },
+    { name: "private_bot",     description: "Set pricing and post a private bot listing (owners only)",       type: 1 },
+
+    // ─── Free Bronze / Status Role ────────────────────────────────────────
+    {
+      name: "free_bronze_role",
+      description: "Post the Free Bronze Role embed with a copyable status text (owners only)",
+      type: 1,
+      options: [
+        { name: "invite_link", description: "The text/link members need to add to their Discord status", type: O.String, required: true },
+        { name: "role",        description: "The role to grant",                                         type: O.Role,   required: true },
+      ],
+    },
+    {
+      name: "status_role_set",
+      description: "Grant a role when members add a specific link to their Discord status (owners only)",
+      type: 1,
+      options: [
+        { name: "invite_link", description: "Invite link or text to watch for in member status", type: O.String, required: true },
+        { name: "role",        description: "Role to grant when the link is detected",           type: O.Role,   required: true },
+      ],
+    },
+    { name: "status_role_clear",  description: "Remove the status invite role config (owners only)",  type: 1 },
+    { name: "status_role_status", description: "Show the current status invite role config",           type: 1 },
+    {
+      name: "bronze_log_set",
+      description: "Set the channel where free bronze role grants/removals are logged (owners only)",
+      type: 1,
+      options: [
+        { name: "channel", description: "Channel to send bronze role logs to", type: O.Channel, required: true, channel_types: [ChannelType.GuildText] },
+      ],
+    },
+
+    // ─── Bot log channel ──────────────────────────────────────────────────
+    {
+      name: "set_log_channel",
+      description: "Set the channel where all bot activity logs are sent (owners only)",
+      type: 1,
+      options: [
+        { name: "channel", description: "Channel to send all bot logs to", type: O.Channel, required: true, channel_types: [ChannelType.GuildText] },
+      ],
+    },
+    { name: "clear_log_channel", description: "Remove the bot log channel (owners only)", type: 1 },
   ];
 }
 
@@ -378,6 +438,137 @@ export async function handleSlash(
     case "list_allowed_servers": {
       if (!(await superOwnerGuard(i))) return;
       await i.reply({ embeds: [E.allowedGuildsEmbed(MAIN_GUILD_ID)], ephemeral: true });
+      return;
+    }
+
+    // ─── Info embeds ─────────────────────────────────────────────────────────
+
+    case "rules":
+    case "tos":
+    case "info":
+    case "howto":
+    case "payment_methods":
+    case "invite_rewards":
+      await handleInfoCommand(i);
+      return;
+
+    case "role_plans":
+    case "private_bot":
+      if (!(await ownerGuard(i))) return;
+      await handleInfoCommand(i);
+      return;
+
+    // ─── Free Bronze / Status Role ────────────────────────────────────────────
+
+    case "free_bronze_role": {
+      if (!(await ownerGuard(i))) return;
+      const inviteLink = i.options.getString("invite_link", true).trim();
+      const role = i.options.getRole("role", true);
+      const existing = getStatusRoleConfig(i.guildId!);
+      setStatusRoleConfig(i.guildId!, {
+        inviteLink,
+        roleId: role.id,
+        logChannelId: existing?.logChannelId,
+      });
+      const { freeBronzeRoleEmbed } = await import("./infoCommands.js");
+      await i.reply({ embeds: [freeBronzeRoleEmbed(inviteLink, role.id)] });
+      return;
+    }
+
+    case "status_role_set": {
+      if (!(await ownerGuard(i))) return;
+      const inviteLink = i.options.getString("invite_link", true).trim();
+      const role = i.options.getRole("role", true);
+      setStatusRoleConfig(i.guildId!, { inviteLink, roleId: role.id });
+      await i.reply({
+        content:
+          `✅ Status role configured!\n` +
+          `• Watching for: \`${inviteLink}\`\n` +
+          `• Grants role: <@&${role.id}>\n\n` +
+          `Use \`/free_bronze_role\` to post the member-facing embed.\n` +
+          `⚠️ Requires the **Presence Intent** enabled in your Discord Developer Portal.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    case "status_role_clear": {
+      if (!(await ownerGuard(i))) return;
+      const cleared = clearStatusRoleConfig(i.guildId!);
+      await i.reply({
+        content: cleared
+          ? "✅ Status role config cleared."
+          : "ℹ️ No status role was configured in this server.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    case "status_role_status": {
+      const cfg = getStatusRoleConfig(i.guildId!);
+      if (!cfg) {
+        await i.reply({ content: "ℹ️ No status role configured in this server.", ephemeral: true });
+      } else {
+        await i.reply({
+          content:
+            `📋 **Status Role Config**\n` +
+            `• Watching for: \`${cfg.inviteLink}\`\n` +
+            `• Grants role: <@&${cfg.roleId}>` +
+            (cfg.logChannelId ? `\n• Log channel: <#${cfg.logChannelId}>` : ""),
+          ephemeral: true,
+        });
+      }
+      return;
+    }
+
+    case "bronze_log_set": {
+      if (!(await ownerGuard(i))) return;
+      const channel = i.options.getChannel("channel", true);
+      const saved = setLogChannel(i.guildId!, channel.id);
+      if (!saved) {
+        await i.reply({
+          content:
+            "❌ No status role is configured yet.\n" +
+            "Run `/free_bronze_role` or `/status_role_set` first, then set the log channel.",
+          ephemeral: true,
+        });
+        return;
+      }
+      await i.reply({
+        content: `✅ Free bronze role logs will be sent to <#${channel.id}>.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // ─── Bot log channel ──────────────────────────────────────────────────────
+
+    case "set_log_channel": {
+      if (!(await ownerGuard(i))) return;
+      const channel = i.options.getChannel("channel", true);
+      setBotLogChannel(i.guildId!, channel.id);
+      await i.reply({
+        content:
+          `✅ Bot logs will now be sent to <#${channel.id}>.\n\n` +
+          `**Logged events:**\n` +
+          `• 🔑 Member OAuth token saved\n` +
+          `• 🚀 Mass join (\`/djoin\`) completed\n` +
+          `• ⛔ User blacklisted / unblacklisted\n` +
+          `• ✅ Server enabled / disabled\n` +
+          `• 👋 Bot auto-left a server\n` +
+          `• 🥉 Free bronze role granted / removed`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    case "clear_log_channel": {
+      if (!(await ownerGuard(i))) return;
+      const cleared2 = clearBotLogChannel(i.guildId!);
+      await i.reply({
+        content: cleared2 ? "✅ Bot log channel removed." : "ℹ️ No log channel was set.",
+        ephemeral: true,
+      });
       return;
     }
 
