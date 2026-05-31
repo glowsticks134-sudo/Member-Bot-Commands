@@ -1,5 +1,6 @@
 import {
   Client,
+  EmbedBuilder,
   GatewayIntentBits,
   Events,
   REST,
@@ -10,9 +11,11 @@ import {
   type ChatInputCommandInteraction,
   type TextChannel,
 } from "discord.js";
-import { BOT2_TOKEN } from "../config.js";
+import { BOT2_TOKEN, CLIENT_ID, COLOR, getRedirectUri } from "../config.js";
 import { getGuildOwnerRoles } from "../storage/owners.js";
 import { isAuthorizedMember } from "./permissions.js";
+import { exchangeCode } from "../oauth.js";
+import { saveUserAuth } from "../storage/tokens.js";
 import * as E from "./embeds.js";
 
 function getClientIdFromToken(token: string): string {
@@ -30,6 +33,24 @@ export function getVerifyClient(): Client | null {
 }
 
 const VERIFY_COMMANDS: RESTPostAPIApplicationCommandsJSONBody[] = [
+  {
+    name: "get_token",
+    description: "Get your OAuth verification link",
+    type: 1,
+  },
+  {
+    name: "auth",
+    description: "Manually authenticate with an OAuth code (fallback)",
+    type: 1,
+    options: [
+      {
+        name: "code",
+        description: "OAuth code from the auth link",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+      },
+    ],
+  },
   {
     name: "send_verify",
     description: "Post the verification embed (owners only)",
@@ -63,35 +84,93 @@ async function registerVerifyCommands(clientId: string, guildId: string): Promis
 }
 
 async function handleVerifyInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (interaction.commandName !== "send_verify") return;
+  const cmd = interaction.commandName;
 
-  const guild = interaction.guild;
-  const member = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
-  const guildOwnerId = guild?.ownerId ?? "";
-  if (!isAuthorizedMember(guildOwnerId, guild?.id ?? "", interaction.user.id, member)) {
-    await interaction.reply({ content: "❌ Only owners can use this command.", ephemeral: true });
+  // ── /get_token ─────────────────────────────────────────────────────────────
+  if (cmd === "get_token") {
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      response_type: "code",
+      redirect_uri: getRedirectUri(),
+      scope: "identify guilds.join",
+      prompt: "consent",
+    });
+    const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setTitle("🔐 Authentication Required")
+        .setDescription("Click the link below to authenticate your Discord account:")
+        .setColor(COLOR.blurple)
+        .addFields(
+          { name: "🔗 Auth Link", value: `[👉 Click here to authenticate](${url})`, inline: false },
+          { name: "ℹ️ What happens?", value: "You'll authorize the app on Discord. Your token is saved **automatically** — no code pasting needed.", inline: false },
+        )
+        .setFooter({ text: "Memberk • Authorization" })
+        .setTimestamp()],
+      ephemeral: true,
+    });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
-
-  const channelOpt = interaction.options.getChannel("channel");
-  const targetChannelId = channelOpt ? channelOpt.id : interaction.channelId!;
-  const imageAttachment = interaction.options.getAttachment("image");
-  const imageUrl = imageAttachment?.url ?? null;
-
-  const { embed, components } = E.verifyEmbed(imageUrl);
-
-  try {
-    const ch = await interaction.client.channels.fetch(targetChannelId);
-    if (ch && "send" in ch) {
-      await (ch as TextChannel).send({ embeds: [embed], components });
-      await interaction.editReply({ content: `✅ Verification embed posted in <#${targetChannelId}>.` });
-    } else {
-      await interaction.editReply({ content: "❌ Could not find or send to that channel." });
+  // ── /auth code: ────────────────────────────────────────────────────────────
+  if (cmd === "auth") {
+    const code = interaction.options.getString("code", true);
+    await interaction.deferReply({ ephemeral: true });
+    const res = await exchangeCode(code.trim());
+    if (!res.ok) {
+      await interaction.editReply({
+        content:
+          `❌ Auth failed: ${res.error}\n\n**Common causes:**\n` +
+          `• Code expired — use \`/get_token\` to get a fresh link\n` +
+          `• Code already used (each code works once only)\n` +
+          `• Redirect URI mismatch in bot config`,
+      });
+      return;
     }
-  } catch (e) {
-    await interaction.editReply({ content: `❌ Failed to post embed: ${(e as Error).message}` });
+    const { access_token, refresh_token } = res.data;
+    saveUserAuth(interaction.user.id, access_token, refresh_token);
+    interaction.user.send({
+      embeds: [new EmbedBuilder()
+        .setTitle("✅ You're Authenticated!")
+        .setDescription("Your token has been saved. You can now be joined to servers using `/djoin`.")
+        .setColor(COLOR.green)
+        .setTimestamp()],
+    }).catch(() => {});
+    await interaction.editReply({ content: "✅ Authenticated successfully." });
+    return;
+  }
+
+  // ── /send_verify ───────────────────────────────────────────────────────────
+  if (cmd === "send_verify") {
+    const guild = interaction.guild;
+    const member = guild ? await guild.members.fetch(interaction.user.id).catch(() => null) : null;
+    const guildOwnerId = guild?.ownerId ?? "";
+    if (!isAuthorizedMember(guildOwnerId, guild?.id ?? "", interaction.user.id, member)) {
+      await interaction.reply({ content: "❌ Only owners can use this command.", ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const channelOpt = interaction.options.getChannel("channel");
+    const targetChannelId = channelOpt ? channelOpt.id : interaction.channelId!;
+    const imageAttachment = interaction.options.getAttachment("image");
+    const imageUrl = imageAttachment?.url ?? null;
+
+    const { embed, components } = E.verifyEmbed(imageUrl);
+
+    try {
+      const ch = await interaction.client.channels.fetch(targetChannelId);
+      if (ch && "send" in ch) {
+        await (ch as TextChannel).send({ embeds: [embed], components });
+        await interaction.editReply({ content: `✅ Verification embed posted in <#${targetChannelId}>.` });
+      } else {
+        await interaction.editReply({ content: "❌ Could not find or send to that channel." });
+      }
+    } catch (e) {
+      await interaction.editReply({ content: `❌ Failed to post embed: ${(e as Error).message}` });
+    }
+    return;
   }
 }
 

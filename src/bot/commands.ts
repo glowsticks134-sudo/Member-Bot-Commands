@@ -15,12 +15,10 @@ import {
   MAIN_GUILD_ID,
   HARDCODED_OWNERS,
   SUPER_OWNER_ID,
-  getRedirectUri,
 } from "../config.js";
 import { addAllowedGuild, isAllowedGuild, removeAllowedGuild } from "../storage/allowedGuilds.js";
 import { addBlacklisted, isBlacklisted, removeBlacklisted } from "../storage/blacklist.js";
-import { exchangeCode } from "../oauth.js";
-import { saveUserAuth, readStoredTokens } from "../storage/tokens.js";
+import { readStoredTokens } from "../storage/tokens.js";
 import * as E from "./embeds.js";
 import { isAuthorizedMember } from "./permissions.js";
 import { doCheckTokens, doMassJoin } from "./restock.js";
@@ -33,7 +31,6 @@ const O = ApplicationCommandOptionType;
 export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[] {
   return [
     // Public
-    { name: "get_token", description: "Get your OAuth verification link", type: 1 },
     { name: "count", description: "Show how many users are authenticated", type: 1 },
     { name: "list_users", description: "List all authenticated users", type: 1 },
     { name: "servers", description: "List all servers the bot is in", type: 1 },
@@ -49,14 +46,6 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
     { name: "help", description: "Show all available commands", type: 1 },
 
     // Owner
-    {
-      name: "auth",
-      description: "Manually authenticate with an OAuth code (fallback)",
-      type: 1,
-      options: [
-        { name: "code", description: "OAuth code from the auth link", type: O.String, required: true },
-      ],
-    },
     {
       name: "djoin",
       description: "Add all authenticated users to a server (owners only)",
@@ -199,31 +188,6 @@ export async function handleSlash(
 
     // ─── Public ─────────────────────────────────────────────────────────────
 
-    case "get_token": {
-      const params = new URLSearchParams({
-        client_id: CLIENT_ID,
-        response_type: "code",
-        redirect_uri: getRedirectUri(),
-        scope: "identify guilds.join",
-        prompt: "consent",
-      });
-      const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
-      await i.reply({
-        embeds: [new EmbedBuilder()
-          .setTitle("🔐 Authentication Required")
-          .setDescription("Click the link below to authenticate your Discord account:")
-          .setColor(COLOR.blurple)
-          .addFields(
-            { name: "🔗 Auth Link", value: `[👉 Click here to authenticate](${url})`, inline: false },
-            { name: "ℹ️ What happens?", value: "You'll authorize the app on Discord. Your token is saved **automatically** — no code pasting needed.", inline: false },
-          )
-          .setFooter({ text: "Memberk • Authorization" })
-          .setTimestamp()],
-        ephemeral: true,
-      });
-      return;
-    }
-
     case "count": {
       const n = readStoredTokens().length;
       await i.reply({
@@ -273,33 +237,6 @@ export async function handleSlash(
     }
 
     // ─── Owner ───────────────────────────────────────────────────────────────
-
-    case "auth": {
-      const code = i.options.getString("code", true);
-      await i.deferReply({ ephemeral: true });
-      const res = await exchangeCode(code.trim());
-      if (!res.ok) {
-        await i.editReply({
-          content:
-            `❌ Auth failed: ${res.error}\n\n**Common causes:**\n` +
-            `• Code expired — use \`/get_token\` to get a fresh link\n` +
-            `• Code already used (each code works once only)\n` +
-            `• Redirect URI mismatch in bot config`,
-        });
-        return;
-      }
-      const { access_token, refresh_token } = res.data;
-      saveUserAuth(i.user.id, access_token, refresh_token);
-      i.user.send({
-        embeds: [new EmbedBuilder()
-          .setTitle("✅ You're Authenticated!")
-          .setDescription("Your token has been saved. You can now be joined to servers using `/djoin`.")
-          .setColor(COLOR.green)
-          .setTimestamp()],
-      }).catch(() => {});
-      await i.editReply({ content: "✅ Authenticated successfully." });
-      return;
-    }
 
     case "djoin": {
       if (!(await ownerGuard(i))) return;

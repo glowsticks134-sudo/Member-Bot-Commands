@@ -25,9 +25,17 @@ export function helpEmbed(): EmbedBuilder {
     .setColor(COLOR.blurple)
     .addFields(
       {
-        name: "🔓 Everyone",
+        name: "🔐 Verification Bot (Bot 2)",
         value: [
           "`/get_token` — Get your OAuth verification link",
+          "`/auth code:` — Manual OAuth auth (fallback)",
+          "`/send_verify` — Post the verification embed (owners only)",
+        ].join("\n"),
+        inline: false,
+      },
+      {
+        name: "🔓 Everyone",
+        value: [
           "`/count` — Show number of authenticated users",
           "`/list_users` — List all authenticated users",
           "`/servers` — List servers the bot is in",
@@ -42,7 +50,6 @@ export function helpEmbed(): EmbedBuilder {
         value: [
           "`/djoin server_id:` — Mass-join all users to a server",
           "`/check_tokens` — Check & refresh all stored tokens",
-          "`/auth code:` — Manual OAuth auth (fallback)",
         ].join("\n"),
         inline: false,
       },
