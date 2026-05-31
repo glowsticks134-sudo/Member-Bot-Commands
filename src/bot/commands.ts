@@ -449,9 +449,6 @@ export async function handleSlash(
     case "howto":
     case "payment_methods":
     case "invite_rewards":
-      await handleInfoCommand(i);
-      return;
-
     case "role_plans":
     case "private_bot":
       if (!(await ownerGuard(i))) return;
