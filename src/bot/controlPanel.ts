@@ -86,7 +86,7 @@ export async function handleControlPanelButton(
       await interaction.reply({ embeds: [countEmbed()], ephemeral: true });
       break;
     case "list_users": {
-      const { embed } = listUsersEmbed();
+      const embed = listUsersEmbed();
       await interaction.reply({ embeds: [embed], ephemeral: true });
       break;
     }

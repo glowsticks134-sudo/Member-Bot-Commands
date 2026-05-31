@@ -5,21 +5,12 @@ import {
   Events,
 } from "discord.js";
 
-import { BOT_TOKEN, OWNER_PASSWORD, SUPER_OWNER_PASSWORD } from "../config.js";
-import { readLiveMessages } from "../storage/liveMessages.js";
-import { grantPendingToken } from "./session.js";
+import { BOT_TOKEN } from "../config.js";
 import { botStatus } from "../botStatus.js";
-import { dbInit } from "../storage/subscribers.js";
 import { handleSlash, registerCommandsForGuild } from "./commands.js";
 import { handlePrefix } from "./prefix.js";
-import { handleControlPanelButton } from "./controlPanel.js";
-import { handleSubscribeButton } from "./subscribeView.js";
-import { handleSetRoleMenu } from "./setRoleView.js";
-import { handleInfoModal } from "./infoCommands.js";
-import { attachStatusWatcher } from "./statusWatcher.js";
 import { startLoops } from "./loops.js";
 import { attachAutoPing } from "./autoping.js";
-import { startRoleGuard } from "./secret.js";
 
 export interface LiveMessageRef {
   channelId: string;
@@ -29,7 +20,6 @@ export interface LiveMessageRef {
 export interface BotState {
   botStartTime: Date | null;
   serverJoinTimes: Map<string, Date>;
-  liveMessages: Map<string, LiveMessageRef>;
 }
 
 export function makeBot(): { client: Client; state: BotState } {
@@ -39,7 +29,6 @@ export function makeBot(): { client: Client; state: BotState } {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMembers,
-      GatewayIntentBits.GuildPresences,
       GatewayIntentBits.DirectMessages,
     ],
     partials: [Partials.Channel],
@@ -48,7 +37,6 @@ export function makeBot(): { client: Client; state: BotState } {
   const state: BotState = {
     botStartTime: null,
     serverJoinTimes: new Map(),
-    liveMessages: new Map(),
   };
 
   client.once(Events.ClientReady, async (c) => {
@@ -57,23 +45,18 @@ export function makeBot(): { client: Client; state: BotState } {
     botStatus.tag = c.user.tag;
     botStatus.connectedAt = new Date();
     state.botStartTime = new Date();
-    dbInit();
-    // Restore live message refs from disk so updates survive restarts
-    const persisted = readLiveMessages();
-    for (const [k, v] of persisted.entries()) {
-      state.liveMessages.set(k, v);
-    }
-    console.log(`[live-embeds] restored ${persisted.size} live message ref(s) from disk`);
+
     for (const g of c.guilds.cache.values()) {
       if (!state.serverJoinTimes.has(g.id)) {
         state.serverJoinTimes.set(g.id, new Date());
       }
     }
+
     for (const g of c.guilds.cache.values()) {
       await registerCommandsForGuild(g.id);
     }
+
     startLoops(c, state);
-    startRoleGuard(c);
   });
 
   client.on(Events.GuildCreate, async (g) => {
@@ -89,39 +72,6 @@ export function makeBot(): { client: Client; state: BotState } {
     try {
       if (interaction.isChatInputCommand()) {
         await handleSlash(interaction, state, client);
-      } else if (interaction.isModalSubmit()) {
-        if (interaction.customId.startsWith("owner_auth:")) {
-          const tier = interaction.customId.split(":")[1] as "owner" | "super";
-          const pw = interaction.fields.getTextInputValue("password");
-          if (!OWNER_PASSWORD && !SUPER_OWNER_PASSWORD) {
-            await interaction.reply({ content: "❌ No passwords are configured on this bot. Set `OWNER_PASSWORD` and `SUPER_OWNER_PASSWORD` in your Railway environment variables.", ephemeral: true });
-          } else if (SUPER_OWNER_PASSWORD && pw === SUPER_OWNER_PASSWORD) {
-            grantPendingToken(interaction.user.id, "super");
-            await interaction.reply({ content: "✅ **Super-owner access granted.** Run the command again within 20 seconds.", ephemeral: true });
-          } else if (OWNER_PASSWORD && pw === OWNER_PASSWORD) {
-            grantPendingToken(interaction.user.id, "owner");
-            await interaction.reply({ content: "✅ **Owner access granted.** Run the command again within 20 seconds.", ephemeral: true });
-          } else {
-            await interaction.reply({ content: "❌ Incorrect password.", ephemeral: true });
-          }
-          void tier;
-        } else if (interaction.customId.startsWith("info:")) {
-          await handleInfoModal(interaction);
-        }
-      } else if (interaction.isButton()) {
-        if (interaction.customId.startsWith("cp:")) {
-          await handleControlPanelButton(interaction, state);
-        } else if (interaction.customId.startsWith("gecko:")) {
-          await handleSubscribeButton(interaction);
-        }
-      } else if (interaction.isStringSelectMenu()) {
-        if (interaction.customId.startsWith("setrole:")) {
-          await handleSetRoleMenu(interaction);
-        }
-      } else if (interaction.isRoleSelectMenu()) {
-        if (interaction.customId.startsWith("setrole:")) {
-          await handleSetRoleMenu(interaction);
-        }
       }
     } catch (e) {
       console.error("[interaction] error", e);
@@ -149,7 +99,6 @@ export function makeBot(): { client: Client; state: BotState } {
   client.on(Events.Error, (e) => console.error("[discord] client error", e));
 
   attachAutoPing(client);
-  attachStatusWatcher(client);
 
   return { client, state };
 }

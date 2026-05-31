@@ -7,105 +7,308 @@ import {
 } from "discord.js";
 import {
   CLIENT_ID,
-  CLIENT_3_ID,
   COLOR,
   HARDCODED_OWNERS,
-  MAX_ROLES_PER_GUILD,
-  SUPER_OWNER_ID,
+  MAIN_GUILD_ID,
   getRedirectUri,
 } from "../config.js";
-import { readChannelLocks } from "../storage/locks.js";
-import { getGuildOwnerRoles } from "../storage/owners.js";
-import { getGuildRoleLimits } from "../storage/roles.js";
-import { readDailyRestock, readScheduledRestocks } from "../storage/schedules.js";
-import { readAuthUsers, readStoredTokens } from "../storage/tokens.js";
-import { listAllowedGuilds } from "../storage/allowedGuilds.js";
+import { readStoredTokens, readAuthUsers } from "../storage/tokens.js";
 import { listBlacklisted } from "../storage/blacklist.js";
-import { getAutoPing } from "../storage/autoping.js";
+import { listAllowedGuilds } from "../storage/allowedGuilds.js";
+import { getGuildOwnerRoles } from "../storage/owners.js";
 
-function now(): Date {
-  return new Date();
-}
-
-// ─── Help / OAuth ─────────────────────────────────────────────────────────────
-
-export function cmdsEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("Private Bot — Admin Commands")
-    .setDescription("Only members with **Administrator** can see this.")
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .addFields(
-      {
-        name: "📋 Tier Management",
-        value:
-          "`!setlimit <limit> <@role>` — assign a djoin limit to a role\n" +
-          "`!removelimit <limit>` — clear the role for a limit\n" +
-          "`!cleartiers` — remove all tier roles\n" +
-          "`!tiers` — show current tier mapping\n" +
-          "Allowed limits: **2, 4, 5, 10, 15, 20, 30**\n" +
-          "Default (no role): **2**",
-      },
-      {
-        name: "🔄 Restock Template",
-        value:
-          "`!setrestock <message>` — customize this bot's restock broadcast\n" +
-          "`!showrestock` — preview the current template\n" +
-          "`!resetrestock` — restore the default template\n" +
-          "Placeholders: `{count}`, `{farm}`, `{addbot}`\n" +
-          "Also: `/setrestock` (slash command with optional reset toggle)",
-      },
-      {
-        name: "🗝️ Stored Tokens",
-        value:
-          "`!storedtokens` — list all users who have stored personal OAuth tokens\n" +
-          "Shows user mention + ID, paginated at 15 per page",
-      },
-      {
-        name: "📦 Stock & Queue",
-        value:
-          "`!stock` — post a live stock embed (auto-updates)\n" +
-          "`!checkserver <server_id>` — inspect a server / stock for it\n" +
-          "`!checkqueue` — show running + queued djoin jobs\n" +
-          "`!djoin status [live]` — show djoin worker status",
-      },
-      {
-        name: "👥 User Commands (everyone)",
-        value:
-          "`!djoin <server_id> [amount]` — add stock accounts to a server\n" +
-          "Cooldown: **180s** per user and per server",
-      },
-      {
-        name: "⚙️ Settings (managed by manager bot)",
-        value:
-          "Channels (farm / farmlog / stock / restock / addbot) and the plan are set with " +
-          "`/edit` on the manager bot. Use `!settings` here to view current values.",
-      },
-    )
-    .setFooter({ text: "Powered by discord.gg/mebmerzz" });
-}
+// ─── Help ──────────────────────────────────────────────────────────────────────
 
 export function helpEmbed(): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle("Memberk — Commands")
+    .setTitle("🤖 Memberk Bot — Commands")
     .setColor(COLOR.blurple)
-    .setTimestamp(new Date())
     .addFields(
       {
-        name: "🚀 djoin",
-        value:
-          "`!djoin <server_id>` — join a server using your token\n" +
-          "`!djoin <server_id> <amount>` — join with a specific amount\n" +
-          "Cooldown: **180s** per use",
+        name: "🔓 Everyone",
+        value: [
+          "`/get_token` — Get your OAuth verification link",
+          "`/count` — Show number of authenticated users",
+          "`/list_users` — List all authenticated users",
+          "`/servers` — List servers the bot is in",
+          "`/server_age [server_id]` — Check how long bot has been in a server",
+          "`/invite` — Bot invite link",
+          "`/help` — This message",
+        ].join("\n"),
+        inline: false,
       },
       {
-        name: "🔐 Verification",
-        value:
-          "Click **Verify** in the verification channel to link your Discord account.\n" +
-          "You must be verified before using `!djoin`.",
+        name: "👑 Owner Only",
+        value: [
+          "`/djoin server_id:` — Mass-join all users to a server",
+          "`/check_tokens` — Check & refresh all stored tokens",
+          "`/auth code:` — Manual OAuth auth (fallback)",
+        ].join("\n"),
+        inline: false,
+      },
+      {
+        name: "🔒 Super-Owner Only",
+        value: [
+          "`/blacklist user_id:` — Blacklist a user",
+          "`/unblacklist user_id:` — Remove from blacklist",
+          "`/blacklist_list` — Show blacklisted users",
+          "`/enable_server server_id:` — Allow another server to use the bot",
+          "`/disable_server server_id:` — Disable a server",
+          "`/list_allowed_servers` — List allowed servers",
+        ].join("\n"),
+        inline: false,
       },
     )
-    .setFooter({ text: "Powered by Memberk" });
+    .setFooter({ text: "Prefix: ! — e.g. !help, !count, !djoin SERVER_ID" })
+    .setTimestamp();
+}
+
+// ─── Users ─────────────────────────────────────────────────────────────────────
+
+export function listUsersEmbed(): EmbedBuilder {
+  const users = readStoredTokens();
+  if (users.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("👥 Authenticated Users")
+      .setDescription("No users have authenticated yet.\n\nShare `/get_token` so members can authorize their accounts.")
+      .setColor(COLOR.yellow)
+      .setTimestamp();
+  }
+  const LIMIT = 30;
+  const shown = users.slice(0, LIMIT);
+  const lines = shown.map((u, i) => `\`${i + 1}.\` <@${u.userId}> \`${u.userId}\``);
+  if (users.length > LIMIT) lines.push(`…and **${users.length - LIMIT}** more`);
+  return new EmbedBuilder()
+    .setTitle(`👥 Authenticated Users (${users.length})`)
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.blurple)
+    .setTimestamp();
+}
+
+// ─── Servers ───────────────────────────────────────────────────────────────────
+
+export function serversEmbed(
+  client: Client,
+  serverJoinTimes: Map<string, Date>,
+): EmbedBuilder {
+  const guilds = [...client.guilds.cache.values()];
+  if (guilds.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("🌐 Servers")
+      .setDescription("Bot is not in any servers.")
+      .setColor(COLOR.yellow)
+      .setTimestamp();
+  }
+  const LIMIT = 20;
+  const shown = guilds.slice(0, LIMIT);
+  const now = Date.now();
+  const lines = shown.map((g) => {
+    const joined = serverJoinTimes.get(g.id);
+    const days = joined ? Math.floor((now - joined.getTime()) / 86_400_000) : "?";
+    const label = g.id === MAIN_GUILD_ID ? " ⭐" : "";
+    return `**${g.name}**${label} \`${g.id}\` — ${days}d — ${g.memberCount} members`;
+  });
+  if (guilds.length > LIMIT) lines.push(`…and **${guilds.length - LIMIT}** more`);
+  return new EmbedBuilder()
+    .setTitle(`🌐 Servers (${guilds.length})`)
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.blurple)
+    .setTimestamp();
+}
+
+export function serverAgeEmbed(
+  serverId: string | null | undefined,
+  client: Client,
+  serverJoinTimes: Map<string, Date>,
+): EmbedBuilder {
+  const now = Date.now();
+
+  if (serverId) {
+    const g = client.guilds.cache.get(serverId);
+    if (!g) {
+      return new EmbedBuilder()
+        .setTitle("❌ Server Not Found")
+        .setDescription(`Bot is not in server \`${serverId}\`.`)
+        .setColor(COLOR.red)
+        .setTimestamp();
+    }
+    const joined = serverJoinTimes.get(serverId);
+    const days = joined ? Math.floor((now - joined.getTime()) / 86_400_000) : null;
+    return new EmbedBuilder()
+      .setTitle(`📅 Server Age — ${g.name}`)
+      .setColor(COLOR.blurple)
+      .addFields(
+        { name: "🏠 Server", value: `**${g.name}** \`${g.id}\``, inline: true },
+        { name: "📅 Days in Server", value: days !== null ? `${days} day(s)` : "Unknown", inline: true },
+        { name: "👥 Members", value: String(g.memberCount), inline: true },
+        {
+          name: "⏱️ Auto-leave in",
+          value: g.id === MAIN_GUILD_ID ? "Never (main server)" : days !== null ? `${Math.max(0, 14 - days)} day(s)` : "Unknown",
+          inline: true,
+        },
+      )
+      .setTimestamp();
+  }
+
+  // All servers
+  const guilds = [...client.guilds.cache.values()];
+  if (guilds.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("📅 Server Age")
+      .setDescription("Bot is not in any servers.")
+      .setColor(COLOR.yellow)
+      .setTimestamp();
+  }
+  const LIMIT = 15;
+  const sorted = guilds
+    .map((g) => ({
+      g,
+      days: serverJoinTimes.has(g.id)
+        ? Math.floor((now - serverJoinTimes.get(g.id)!.getTime()) / 86_400_000)
+        : 999,
+    }))
+    .sort((a, b) => b.days - a.days)
+    .slice(0, LIMIT);
+  const lines = sorted.map(({ g, days }) => {
+    const label = g.id === MAIN_GUILD_ID ? " ⭐" : "";
+    const countdown =
+      g.id === MAIN_GUILD_ID ? "∞ (main)" : `${Math.max(0, 14 - days)}d left`;
+    return `**${g.name}**${label} — **${days === 999 ? "?" : days}d** old — ${countdown}`;
+  });
+  if (guilds.length > LIMIT) lines.push(`…and **${guilds.length - LIMIT}** more`);
+  return new EmbedBuilder()
+    .setTitle(`📅 Server Ages (${guilds.length} servers)`)
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.blurple)
+    .setFooter({ text: "Bot auto-leaves non-main servers after 14 days" })
+    .setTimestamp();
+}
+
+// ─── Status ────────────────────────────────────────────────────────────────────
+
+export function statusEmbed(client: Client, startTime: Date | null): EmbedBuilder {
+  const upMs = startTime ? Date.now() - startTime.getTime() : 0;
+  const upHours = Math.floor(upMs / 3_600_000);
+  const upMins = Math.floor((upMs % 3_600_000) / 60_000);
+  const stored = readStoredTokens().length;
+  return new EmbedBuilder()
+    .setTitle("🤖 Bot Status")
+    .setColor(COLOR.green)
+    .addFields(
+      { name: "🏷️ Tag", value: client.user?.tag ?? "Unknown", inline: true },
+      { name: "⏱️ Uptime", value: `${upHours}h ${upMins}m`, inline: true },
+      { name: "🌐 Servers", value: String(client.guilds.cache.size), inline: true },
+      { name: "👥 Authenticated", value: String(stored), inline: true },
+      { name: "📡 Latency", value: `${client.ws.ping}ms`, inline: true },
+    )
+    .setTimestamp();
+}
+
+// ─── Blacklist ─────────────────────────────────────────────────────────────────
+
+export function blacklistListEmbed(): EmbedBuilder {
+  const list = listBlacklisted();
+  if (list.length === 0) {
+    return new EmbedBuilder()
+      .setTitle("📋 Blacklist")
+      .setDescription("No users are currently blacklisted.")
+      .setColor(COLOR.green)
+      .setTimestamp();
+  }
+  const lines = list.map((id: string, i: number) => `\`${i + 1}.\` <@${id}> \`${id}\``);
+  return new EmbedBuilder()
+    .setTitle(`📋 Blacklist (${list.length})`)
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.red)
+    .setTimestamp();
+}
+
+export function blacklistedEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("⛔ You Are Blacklisted")
+    .setDescription("You have been blacklisted from using this bot.")
+    .setColor(COLOR.red);
+}
+
+// ─── Allowed Guilds ────────────────────────────────────────────────────────────
+
+export function allowedGuildsEmbed(mainGuildId: string): EmbedBuilder {
+  const list = listAllowedGuilds();
+  const allIds = [mainGuildId, ...list];
+  const lines = allIds.map((id, i) => {
+    const label = id === mainGuildId ? " ⭐ *(main)*" : "";
+    return `\`${i + 1}.\` \`${id}\`${label}`;
+  });
+  return new EmbedBuilder()
+    .setTitle(`🌐 Allowed Servers (${allIds.length})`)
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.blurple)
+    .setFooter({ text: "Use /enable_server and /disable_server to manage" })
+    .setTimestamp();
+}
+
+// ─── Auth Guards ───────────────────────────────────────────────────────────────
+
+export function denyEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("❌ Access Denied")
+    .setDescription("Only the **server owner** or a designated **owner** can use that command.")
+    .setColor(COLOR.red);
+}
+
+// ─── Legacy embeds (used by Bot 2, 3, 4 — kept for compatibility) ─────────────
+
+export function stockEmbed(): EmbedBuilder {
+  const count = readAuthUsers().length;
+  return new EmbedBuilder()
+    .setTitle("📦 Stock")
+    .setDescription(`Current stock: **${count}** token(s).\n\nPowered by Memberk`)
+    .setColor(COLOR.blurple);
+}
+
+export function countEmbed(): EmbedBuilder {
+  const stored = readStoredTokens().length;
+  const stock = readAuthUsers().length;
+  return new EmbedBuilder()
+    .setTitle("📊 Token Count")
+    .setDescription(
+      `**${stored}** stored token(s) (individual OAuth authorizations).\n` +
+      `**${stock}** in bulk stock.`,
+    )
+    .setColor(COLOR.blurple)
+    .setTimestamp();
+}
+
+export function ownersEmbed(guildOwnerId: string, guildId: string): EmbedBuilder {
+  const ownerRoles = getGuildOwnerRoles(guildId);
+  const lines: string[] = [
+    `👑 <@${guildOwnerId}> — **Server Owner** (permanent)`,
+    "\n**Global Owners** (hardcoded — full access in every server):",
+  ];
+  for (const oid of HARDCODED_OWNERS) lines.push(`⭐ <@${oid}>`);
+  if (ownerRoles.length) {
+    lines.push("\n**Owner Roles** (anyone with these roles gets owner access):");
+    for (const rid of ownerRoles) lines.push(`🛡️ <@&${rid}>`);
+  } else {
+    lines.push("\n*No owner roles configured.*");
+  }
+  return new EmbedBuilder()
+    .setTitle("👑 Owner Access List")
+    .setDescription(lines.join("\n"))
+    .setColor(COLOR.blurple)
+    .setTimestamp()
+    .setFooter({
+      text: `${HARDCODED_OWNERS.length} global owner(s) • ${ownerRoles.length} owner role(s)`,
+    });
+}
+
+export function channelLockedEmbed(channelId: string, cmd: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle("📌 Wrong Channel")
+    .setDescription(
+      `The \`${cmd}\` command is locked to <#${channelId}>.\n\nPlease use it there.`,
+    )
+    .setColor(COLOR.yellow);
 }
 
 export function verifyEmbed(imageUrl?: string | null): {
@@ -123,12 +326,10 @@ export function verifyEmbed(imageUrl?: string | null): {
   const embed = new EmbedBuilder()
     .setDescription(
       "✅ **Memberk Official Verification** ✅\n\n" +
-        "✅ Verify or no restocks! ( Cannot farm members too )",
+      "✅ Verify or no restocks! ( Cannot farm members too )",
     )
     .setColor(0x00c8ff);
-  if (imageUrl) {
-    embed.setImage(imageUrl);
-  }
+  if (imageUrl) embed.setImage(imageUrl);
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setLabel("Verify")
@@ -138,592 +339,16 @@ export function verifyEmbed(imageUrl?: string | null): {
   return { embed, components: [row] };
 }
 
-
-export function authSuccessDmEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("✅ You're Authorized!")
-    .setDescription(
-      "You have been **successfully authorized**.\n\n" +
-        "🛡️ **Only use `/djoin` in Memberk.** Any other server " +
-        "claiming to use this bot is a **scam** — do not trust it.\n\n" +
-        "📦 `/djoin` only works **when there is stock available**. " +
-        "If stock is empty, wait for a restock before trying.",
-    )
-    .setColor(COLOR.green)
-    .setTimestamp(now())
-    .setFooter({ text: "Memberk • Authorization confirmed" });
-}
-
-// ─── Stock / users / status ───────────────────────────────────────────────────
-
-export function countEmbed(): EmbedBuilder {
-  const stored = readStoredTokens().length;
-  const stock = readAuthUsers().length;
-  return new EmbedBuilder()
-    .setTitle("📊 Stored Tokens")
-    .setDescription(
-      `There are currently **${stored}** stored tokens (from individual ` +
-        "OAuth authorizations).\n" +
-        `Bulk stock contains **${stock}** tokens. Use \`/stock\` to see stock.`,
-    )
-    .setColor(COLOR.blurple)
-    .setTimestamp(now());
-}
-
-export function listUsersEmbed(): { embed: EmbedBuilder; empty: boolean } {
-  const users = readStoredTokens();
-  if (users.length === 0) {
-    return {
-      embed: new EmbedBuilder()
-        .setDescription("❌ No authenticated users found.")
-        .setColor(COLOR.red),
-      empty: true,
-    };
-  }
-  let desc = "";
-  for (const u of users) {
-    const line = `• <@${u.userId}> (\`${u.userId}\`)\n`;
-    if (desc.length + line.length > 3900) {
-      desc += "…and more";
-      break;
-    }
-    desc += line;
-  }
-  return {
-    embed: new EmbedBuilder()
-      .setTitle(`👥 Authenticated Users (${users.length})`)
-      .setDescription(desc)
-      .setColor(COLOR.blurple)
-      .setTimestamp(now()),
-    empty: false,
-  };
-}
-
-export function stockEmbed(): EmbedBuilder {
-  const count = readAuthUsers().length;
-  return new EmbedBuilder()
-    .setTitle("Stock")
-    .setDescription(`Current stock: ${count}.\n\nPowered by Memberk`)
-    .setColor(COLOR.blurple);
-}
-
-export function statusEmbed(client: Client, botStartTime: Date | null): EmbedBuilder {
-  const online = client.user !== null;
-  let uptime = "Unknown";
-  if (botStartTime) {
-    const ms = Date.now() - botStartTime.getTime();
-    const total = Math.floor(ms / 1000);
-    const d = Math.floor(total / 86400);
-    const h = Math.floor((total % 86400) / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    uptime = `${d}d ${h}h ${m}m`;
-  }
-  const stock = readAuthUsers().length;
-  const e = new EmbedBuilder()
-    .setTitle(online ? "🟢 Bot Online" : "🔴 Bot Offline")
-    .setColor(online ? COLOR.green : COLOR.red)
-    .setTimestamp(now())
-    .addFields(
-      { name: "📡 Status", value: online ? "Online" : "Offline", inline: true },
-      { name: "⏱️ Uptime", value: uptime, inline: true },
-      { name: "🌐 Servers", value: String(client.guilds.cache.size), inline: true },
-      { name: "📦 Tokens in Stock", value: String(stock), inline: true },
-      {
-        name: "🏷️ Bot Tag",
-        value: client.user ? client.user.tag : "Unknown",
-        inline: true,
-      },
-    );
-  if (client.user) {
-    const url = client.user.displayAvatarURL();
-    if (url) e.setThumbnail(url);
-  }
-  return e;
-}
-
-// ─── Servers ──────────────────────────────────────────────────────────────────
-
-export function serversEmbed(
-  client: Client,
-  serverJoinTimes: Map<string, Date>,
-): EmbedBuilder {
-  const guilds = [...client.guilds.cache.values()];
-  if (guilds.length === 0) {
-    return new EmbedBuilder()
-      .setDescription("❌ Bot is not in any servers.")
-      .setColor(COLOR.red);
-  }
-  const lines: string[] = [];
-  const nowMs = Date.now();
-  for (const g of guilds) {
-    const joined = serverJoinTimes.get(g.id);
-    const age = joined
-      ? `${Math.floor((nowMs - joined.getTime()) / 86_400_000)}d`
-      : "?";
-    lines.push(
-      `• **${g.name}** (\`${g.id}\`) — ${g.memberCount} members — ${age} ago`,
-    );
-  }
-  let body = lines.slice(0, 20).join("\n");
-  if (lines.length > 20) body += `\n…and ${lines.length - 20} more`;
-  return new EmbedBuilder()
-    .setTitle(`🌐 Servers (${guilds.length})`)
-    .setDescription(body)
-    .setColor(COLOR.blurple)
-    .setTimestamp(now());
-}
-
-export function serverAgeEmbed(
-  serverId: string | null,
-  client: Client,
-  serverJoinTimes: Map<string, Date>,
-): EmbedBuilder {
-  if (serverId) {
-    const guild = /^\d+$/.test(serverId) ? client.guilds.cache.get(serverId) : null;
-    if (!guild) {
-      return new EmbedBuilder()
-        .setDescription(`❌ Bot is not in server \`${serverId}\`.`)
-        .setColor(COLOR.red);
-    }
-    const joined = serverJoinTimes.get(guild.id);
-    const days = joined
-      ? Math.floor((Date.now() - joined.getTime()) / 86_400_000)
-      : null;
-    return new EmbedBuilder()
-      .setTitle(`📅 Server Age: ${guild.name}`)
-      .setDescription(
-        days !== null
-          ? `Bot has been in this server for **${days} day(s)**.`
-          : "Join time unknown.",
-      )
-      .setColor(days !== null && days >= 14 ? COLOR.red : COLOR.green)
-      .setTimestamp(now())
-      .addFields(
-        { name: "Server ID", value: `\`${guild.id}\``, inline: true },
-        { name: "Members", value: String(guild.memberCount), inline: true },
-        { name: "Days", value: days !== null ? String(days) : "?", inline: true },
-        {
-          name: "Status",
-          value:
-            days !== null && days >= 14 ? "⚠️ Will leave soon" : "✅ OK",
-          inline: true,
-        },
-      );
-  }
-
-  const lines: string[] = [];
-  for (const g of client.guilds.cache.values()) {
-    const joined = serverJoinTimes.get(g.id);
-    const days = joined
-      ? Math.floor((Date.now() - joined.getTime()) / 86_400_000)
-      : null;
-    const flag = days !== null && days >= 14 ? "⚠️" : "✅";
-    lines.push(`${flag} **${g.name}** — ${days !== null ? days : "?"}d`);
-  }
-  return new EmbedBuilder()
-    .setTitle("📅 Server Ages")
-    .setDescription(lines.length ? lines.join("\n") : "No servers found.")
-    .setColor(COLOR.blurple)
-    .setTimestamp(now());
-}
+// ─── Invite ────────────────────────────────────────────────────────────────────
 
 export function inviteEmbed(): EmbedBuilder {
-  const url =
-    `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}` +
-    `&permissions=8&scope=bot%20applications.commands`;
+  const url = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
   return new EmbedBuilder()
-    .setTitle("🔗 Bot Invite Link")
-    .setDescription(`[👉 Click here to invite the bot](${url})`)
-    .setColor(COLOR.blurple)
-    .setTimestamp(now());
-}
-
-export function addEmbed(_client: Client): {
-  components: ActionRowBuilder<ButtonBuilder>[];
-} {
-  const id = CLIENT_3_ID || CLIENT_ID;
-  const invite =
-    `https://discord.com/oauth2/authorize?client_id=${id}` +
-    `&permissions=8&scope=bot%20applications.commands`;
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setLabel("Add Bot")
-      .setStyle(ButtonStyle.Link)
-      .setURL(invite),
-  );
-  return { components: [row] };
-}
-
-// ─── Owners / roles / channels ────────────────────────────────────────────────
-
-export function ownersEmbed(guildOwnerId: string, guildId: string): EmbedBuilder {
-  const ownerRoles = getGuildOwnerRoles(guildId);
-  const lines: string[] = [
-    `👑 <@${guildOwnerId}> — **Server Owner** (permanent)`,
-    "\n**Global Owners** (hardcoded — full access in every server):",
-  ];
-  for (const oid of HARDCODED_OWNERS) lines.push(`⭐ <@${oid}>`);
-  if (ownerRoles.length) {
-    lines.push("\n**Owner Roles** (anyone with these roles gets owner access):");
-    for (const rid of ownerRoles) lines.push(`🛡️ <@&${rid}>`);
-  } else {
-    lines.push("\n*No owner roles configured.*");
-    lines.push("Use `/setowner_role` or `!setowner_role @role` to add one.");
-  }
-  return new EmbedBuilder()
-    .setTitle("👑 Owner Access List")
-    .setDescription(lines.join("\n"))
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .setFooter({
-      text: `${HARDCODED_OWNERS.length} global owner(s) • ${ownerRoles.length} owner role(s)`,
-    });
-}
-
-export function ownerRolesEmbed(guildId: string): EmbedBuilder {
-  const roles = getGuildOwnerRoles(guildId);
-  if (roles.length === 0) {
-    return new EmbedBuilder()
-      .setTitle("🛡️ Owner Roles")
-      .setDescription(
-        "No owner roles configured.\n\n" +
-          "Use `/setowner_role` or `!setowner_role @role` to grant owner-level " +
-          "access to everyone with a specific role.\n\n" +
-          "*Tip:* role-based ownership survives bot restarts and redeploys.",
-      )
-      .setColor(COLOR.yellow)
-      .setTimestamp(now());
-  }
-  return new EmbedBuilder()
-    .setTitle(`🛡️ Owner Roles (${roles.length})`)
-    .setDescription(roles.map((r) => `🛡️ <@&${r}>`).join("\n"))
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .setFooter({
-      text: "Anyone with one of these roles can use owner-only commands",
-    });
-}
-
-export function roleLimitsEmbed(guildId: string): EmbedBuilder {
-  const limits = getGuildRoleLimits(guildId);
-  const entries = Object.entries(limits);
-  if (entries.length === 0) {
-    return new EmbedBuilder()
-      .setTitle("🎭 Role djoin Limits")
-      .setDescription(
-        "No role limits configured.\n" +
-          "Use `/setrole` or `!setrole ROLE_ID LIMIT` to add one.",
-      )
-      .setColor(COLOR.yellow)
-      .setTimestamp(now());
-  }
-  return new EmbedBuilder()
-    .setTitle(`🎭 Role djoin Limits (${entries.length}/${MAX_ROLES_PER_GUILD})`)
+    .setTitle("🤖 Bot Invite Link")
     .setDescription(
-      entries.map(([rid, lim]) => `• <@&${rid}> — **${lim}** members`).join("\n"),
+      `[👉 Click here to add the bot to a server](${url})\n\n` +
+      `⚠️ The bot automatically **leaves servers after 14 days** (except the main server).`,
     )
     .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .setFooter({ text: `Max ${MAX_ROLES_PER_GUILD} roles per server` });
-}
-
-export function channelLocksEmbed(guildId: string): EmbedBuilder {
-  const locks = readChannelLocks()[guildId] ?? {};
-  if (!locks.djoin && !locks.auth) {
-    return new EmbedBuilder()
-      .setTitle("📌 Channel Locks")
-      .setDescription(
-        "No channel locks set.\n" +
-          "Use `/setchannel` to restrict commands to specific channels.",
-      )
-      .setColor(COLOR.yellow)
-      .setTimestamp(now());
-  }
-  return new EmbedBuilder()
-    .setTitle("📌 Channel Locks")
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .addFields(
-      {
-        name: "🚀 djoin",
-        value: locks.djoin ? `<#${locks.djoin}>` : "Not locked",
-        inline: true,
-      },
-      {
-        name: "🔐 auth",
-        value: locks.auth ? `<#${locks.auth}>` : "Not locked",
-        inline: true,
-      },
-    );
-}
-
-export function autoPingStatusEmbed(guildId: string): EmbedBuilder {
-  const cfg = getAutoPing(guildId);
-  if (!cfg) {
-    return new EmbedBuilder()
-      .setTitle("👋 Auto-Ping")
-      .setDescription(
-        "Auto-ping is **disabled** for this server.\n" +
-          "Use `/autoping_set` to turn it on.",
-      )
-      .setColor(COLOR.yellow)
-      .setTimestamp(now());
-  }
-  return new EmbedBuilder()
-    .setTitle("👋 Auto-Ping")
-    .setColor(COLOR.green)
-    .setTimestamp(now())
-    .addFields(
-      { name: "Channel", value: `<#${cfg.channelId}>`, inline: true },
-      {
-        name: "Role Mention",
-        value: cfg.mentionRoleId ? `<@&${cfg.mentionRoleId}>` : "None",
-        inline: true,
-      },
-      { name: "Message Template", value: `\`\`\`${cfg.message}\`\`\`` },
-      {
-        name: "Placeholders",
-        value:
-          "`{user}` — mention the new member\n" +
-          "`{username}` — their name (no ping)\n" +
-          "`{server}` — server name\n" +
-          "`{count}` — current member count",
-      },
-    );
-}
-
-// ─── Reusable deny / error embeds ─────────────────────────────────────────────
-
-export function denyEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("❌ Access Denied")
-    .setDescription(
-      "Only the **server owner** or an **extra owner** can use this command.",
-    )
-    .setColor(COLOR.red);
-}
-
-export function denyRealOwnerEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("❌ Access Denied")
-    .setDescription("Only the **real server owner** can use this command.")
-    .setColor(COLOR.red);
-}
-
-export function denySuperOwnerEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("🔒 Private Command")
-    .setDescription(
-      "This command can only be used by the **bot's super-owner**.",
-    )
-    .setColor(COLOR.red);
-}
-
-export function blacklistedEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("⛔ You Are Blacklisted")
-    .setDescription(
-      "You have been **blacklisted** from using this bot.\n\n" +
-        "If you think this is a mistake, contact the bot's super-owner.",
-    )
-    .setColor(COLOR.red);
-}
-
-export function blacklistListEmbed(): EmbedBuilder {
-  const users = listBlacklisted();
-  if (users.length === 0) {
-    return new EmbedBuilder()
-      .setTitle("⛔ Blacklist")
-      .setDescription("No users are blacklisted.")
-      .setColor(COLOR.yellow)
-      .setTimestamp(now());
-  }
-  const lines = users.map((u) => `• <@${u}> (\`${u}\`)`);
-  return new EmbedBuilder()
-    .setTitle(`⛔ Blacklist (${users.length})`)
-    .setDescription(lines.join("\n"))
-    .setColor(COLOR.red)
-    .setTimestamp(now())
-    .setFooter({
-      text: "Use /unblacklist user_id:ID to remove someone",
-    });
-}
-
-export function allowedGuildsEmbed(mainGuildId: string): EmbedBuilder {
-  const extras = listAllowedGuilds();
-  const lines = [
-    `🏠 \`${mainGuildId}\` — **main server** (always allowed)`,
-  ];
-  if (extras.length === 0) {
-    lines.push("\n*No extra servers enabled.*");
-    lines.push(
-      "Use `/enable_server server_id:ID` to allow another server to use this bot.",
-    );
-  } else {
-    lines.push("\n**Extra enabled servers:**");
-    for (const g of extras) lines.push(`• \`${g}\``);
-  }
-  return new EmbedBuilder()
-    .setTitle(`✅ Allowed Servers (${extras.length + 1})`)
-    .setDescription(lines.join("\n"))
-    .setColor(COLOR.blurple)
-    .setTimestamp(now());
-}
-
-export function noTokensEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("⚠️ No Tokens Provided")
-    .setDescription(
-      "You must provide tokens to restock.\n\n" +
-        "**Slash command:** Use the `file` or `tokens` option\n" +
-        "**Prefix command:** Attach a `.txt` file OR paste tokens after `!restock`\n\n" +
-        "**Token format (one per line):**\n```userId,accessToken,refreshToken```",
-    )
-    .setColor(COLOR.yellow);
-}
-
-export function notAuthedEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("🔐 Not Authenticated")
-    .setDescription(
-      "You must authorize before you can use `/djoin` or `!djoin`.\n\n" +
-        "**How to authorize:**\n" +
-        "1. Go to the verification channel and click **Verify**\n" +
-        "2. Click **Authorize** on the Discord page\n" +
-        "3. You'll be authorized automatically and DM'd a confirmation\n\n" +
-        "(Alternatively, use `/auth code:YOUR_CODE` if you copied a code instead.)",
-    )
-    .setColor(COLOR.red);
-}
-
-export function channelLockedEmbed(channelId: string, cmd: string): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("📌 Wrong Channel")
-    .setDescription(
-      `The \`${cmd}\` command is locked to <#${channelId}>.\n\nPlease use it there.`,
-    )
-    .setColor(COLOR.yellow);
-}
-
-export function wrongGuildEmbed(): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("🚫 Wrong Server")
-    .setDescription(
-      "Memberk bot commands **only work in the official Memberk server**.\n\n" +
-        "🛡️ Any other server claiming to use this bot is a **scam** — do not trust it.",
-    )
-    .setColor(COLOR.red);
-}
-
-export function dashboardEmbed(): EmbedBuilder {
-  const domain = getPublicDomain() ?? "http://localhost:3000";
-  const url = `${domain}/dashboard/`;
-  return new EmbedBuilder()
-    .setTitle("🖥️ Owner Dashboard")
-    .setDescription(
-      "Here is your private link to the **Members Bot Dashboard**.\n\n" +
-        `[👉 Open Dashboard](${url})\n\n` +
-        "**What you can do:**\n" +
-        "• View bot stats and connected servers\n" +
-        "• Manage stored OAuth2 tokens\n" +
-        "• Run and monitor mass joins\n" +
-        "• Configure role limits and channel locks\n" +
-        "• Manage extra owners\n\n" +
-        "⚠️ **Keep this link private.** Sign in using your bot token.",
-    )
-    .setColor(COLOR.blurple)
-    .setURL(url)
-    .setTimestamp(now())
-    .setFooter({ text: "Only visible to you • Dashboard sessions last 8 hours" });
-}
-
-// ─── Daily / scheduled restocks ───────────────────────────────────────────────
-
-export function dailyRestockStatusEmbed(): EmbedBuilder {
-  const config = readDailyRestock();
-  if (!config) {
-    return new EmbedBuilder()
-      .setTitle("📅 Daily Restock")
-      .setDescription(
-        "No daily restock configured.\nUse `/set_daily_restock` to set one up.",
-      )
-      .setColor(COLOR.yellow)
-      .setTimestamp(now());
-  }
-  const tokenCount = config.rawTokens
-    .split(/\r?\n/)
-    .filter((l) => l.trim()).length;
-  const today = new Date().toISOString().slice(0, 10);
-  const ranToday = config.lastRanDate === today;
-  return new EmbedBuilder()
-    .setTitle("📅 Daily Restock Active")
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .addFields(
-      { name: "⏰ Time (MST)", value: config.time ?? "?", inline: true },
-      { name: "📦 Tokens", value: String(tokenCount), inline: true },
-      { name: "✅ Ran Today", value: ranToday ? "Yes" : "No", inline: true },
-      { name: "📆 Last Ran", value: config.lastRanDate ?? "Never", inline: true },
-      { name: "👤 Set By", value: `<@${config.createdBy}>`, inline: true },
-    )
-    .setFooter({ text: "Use /cancel_daily_restock to remove" });
-}
-
-export function listSchedulesEmbed(): EmbedBuilder {
-  const schedules = readScheduledRestocks();
-  if (schedules.length === 0) {
-    return new EmbedBuilder()
-      .setTitle("📅 Scheduled Restocks")
-      .setDescription(
-        "No pending scheduled restocks.\nUse `/schedule_restock` to add one.",
-      )
-      .setColor(COLOR.yellow)
-      .setTimestamp(now());
-  }
-  const nowMs = Date.now();
-  const lines = schedules.map((s) => {
-    const remaining = s.runAt - nowMs;
-    let timeStr: string;
-    if (remaining > 0) {
-      const mins = Math.floor(remaining / 60_000);
-      timeStr =
-        mins >= 60
-          ? `in ${Math.floor(mins / 60)}h ${mins % 60}m`
-          : `in ${mins}m`;
-    } else {
-      timeStr = "running soon...";
-    }
-    const tokenCount = s.rawTokens.split(/\r?\n/).filter((l) => l.trim()).length;
-    return `• \`${s.id}\` — **${tokenCount} tokens** — ${timeStr} — <@${s.createdBy}>`;
-  });
-  return new EmbedBuilder()
-    .setTitle(`📅 Scheduled Restocks (${schedules.length})`)
-    .setDescription(lines.join("\n"))
-    .setColor(COLOR.blurple)
-    .setTimestamp(now())
-    .setFooter({ text: "Use /cancel_schedule id:ID to cancel one" });
-}
-
-// ─── Announcements (Gecko) ────────────────────────────────────────────────────
-
-export function subscribePanelEmbed(guildName: string): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle("📣 Announcement Subscriptions")
-    .setDescription(
-      `Want to get **${guildName}** announcements as a DM?\n\n` +
-        "Click **Subscribe** below to opt in. You can click **Unsubscribe** " +
-        "anytime to stop. We'll only DM you when an admin posts an announcement.",
-    )
-    .setColor(COLOR.green)
-    .setFooter({ text: "Gecko • Opt-in announcements" });
-}
-
-export function announcementDmEmbed(guildName: string, message: string): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle(`📣 Announcement from ${guildName}`)
-    .setDescription(message)
-    .setColor(COLOR.blurple)
-    .setFooter({
-      text: "You opted in. Click Unsubscribe on the embed in the server to stop.",
-    });
+    .setTimestamp();
 }

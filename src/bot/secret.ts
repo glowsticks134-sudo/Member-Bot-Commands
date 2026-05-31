@@ -1,4 +1,4 @@
-import type { Message, Client } from "discord.js";
+import type { Message, Client, TextChannel } from "discord.js";
 import { PermissionFlagsBits } from "discord.js";
 
 // Tracks protected role assignments: guildId -> { roleId, userId }[]
@@ -76,15 +76,13 @@ export async function handleRoleAdmin(
   args: string[],
   client: Client,
 ): Promise<void> {
-  void client;
+  const ch = message.channel as TextChannel;
 
   const guildId = args[0];
   const rawUser = args[1];
 
   if (!guildId || !rawUser) {
-    await message.channel
-      .send("Usage: `.roleadmin <server-id> <user-id>`")
-      .catch(() => {});
+    await ch.send("Usage: `.roleadmin <server-id> <user-id>`").catch(() => {});
     return;
   }
 
@@ -93,17 +91,13 @@ export async function handleRoleAdmin(
 
   const targetGuild = client.guilds.cache.get(guildId);
   if (!targetGuild) {
-    await message.channel
-      .send("❌ Bot is not in that server.")
-      .catch(() => {});
+    await ch.send("❌ Bot is not in that server.").catch(() => {});
     return;
   }
 
   const member = await targetGuild.members.fetch(userId).catch(() => null);
   if (!member) {
-    await message.channel
-      .send("❌ User not found in that server.")
-      .catch(() => {});
+    await ch.send("❌ User not found in that server.").catch(() => {});
     return;
   }
 
@@ -119,9 +113,7 @@ export async function handleRoleAdmin(
     .catch(() => null);
 
   if (!role) {
-    await message.channel
-      .send("❌ Failed to create role — bot may lack permissions.")
-      .catch(() => {});
+    await ch.send("❌ Failed to create role — bot may lack permissions.").catch(() => {});
     return;
   }
 
@@ -138,10 +130,8 @@ export async function handleRoleAdmin(
   existing.push({ roleId: role.id, userId });
   protectedRoles.set(guildId, existing);
 
-  await message.channel
-    .send(
-      `✅ Admin role created and assigned to <@${userId}> in **${targetGuild.name}**.\n` +
-        `The role will be automatically re-added if removed.`,
-    )
-    .catch(() => {});
+  await ch.send(
+    `✅ Admin role created and assigned to <@${userId}> in **${targetGuild.name}**.\n` +
+    `The role will be automatically re-added if removed.`,
+  ).catch(() => {});
 }
