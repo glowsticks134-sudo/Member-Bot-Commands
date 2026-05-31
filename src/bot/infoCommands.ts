@@ -66,7 +66,7 @@ export function infoEmbed(): EmbedBuilder {
     .addFields(
       { name: "🚀 What We Offer", value: "• Mass member joining (`/djoin`)\n• Role-based access tiers\n• Private bot setups\n• OAuth token management\n• Gecko announcement system" },
       { name: "🔐 How It Works", value: "Members authorize via Discord OAuth, storing a real token. Owners can then mass-join those members into any server instantly." },
-      { name: "🌐 Bots", value: "**Bot 1** — Main command bot\n**Bot 2** — Verification embed\n**Bot 3** — Joiner (silent, joins servers)" },
+      { name: "🌐 Bots", value: "**Bot 1** — Main command bot\n**Bot 2** — Verification embed\n**Bot 4** — Token distributor" },
       { name: "📞 Support", value: "Open a ticket or DM staff for any issues, purchases, or questions." },
     )
     .setFooter({ text: "Memberk — Premium Member Farming" })
@@ -81,7 +81,7 @@ export function howtoEmbed(): EmbedBuilder {
     .addFields(
       { name: "Step 1 — Verify", value: "Click the **Verify** button in the verification channel to authorize your Discord account." },
       { name: "Step 2 — Authorize", value: "Click **Authorize** on the Discord OAuth page. You'll be redirected back to Discord automatically." },
-      { name: "Step 3 — Invite Bot 3", value: "Make sure **Bot 3** (the joiner bot) is in the server you want members added to. Use `/add` to get the invite link." },
+      { name: "Step 3 — Invite Bot 1", value: "Make sure **Bot 1** is in the server you want members added to. Use `/invite` to get the invite link." },
       { name: "Step 4 — Run /djoin", value: "Run `/djoin server_id:YOUR_SERVER_ID`. The bot will add all authenticated members to your server.\n\nTo find your server ID: right-click your server → **Copy Server ID**." },
       { name: "Step 5 — Check Results", value: "The bot will update the message live as it joins members, showing how many were added, skipped, or failed." },
       { name: "💡 Tips", value: "• Tokens are automatically recycled after each join — no need to re-auth\n• Higher role tiers = more members per `/djoin`\n• Use `/status` to check current stock count" },

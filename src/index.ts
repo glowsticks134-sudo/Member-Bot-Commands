@@ -2,9 +2,8 @@ import "dotenv/config";
 import { startServer } from "./server.js";
 import { startBot } from "./bot/client.js";
 import { startVerifyBot } from "./bot/verifyBot.js";
-import { startJoinerBot } from "./bot/joinerBot.js";
 import { startBot4 } from "./bot/bot4.js";
-import { BOT_TOKEN, BOT2_TOKEN, BOT3_TOKEN, BOT4_TOKEN, CLIENT_ID, CLIENT_SECRET, getRedirectUri } from "./config.js";
+import { BOT_TOKEN, BOT2_TOKEN, BOT4_TOKEN, CLIENT_ID, CLIENT_SECRET, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 
 const _keepAlive = setInterval(() => {}, 1 << 30);
@@ -16,7 +15,6 @@ async function main(): Promise<void> {
 
   console.log(`[env] TOKEN_1: ${BOT_TOKEN ? "✓ set" : "✗ MISSING"} (Bot 1 — main)`);
   console.log(`[env] TOKEN_2: ${BOT2_TOKEN ? "✓ set" : "○ not set (Bot 2 — verification, optional)"}`);
-  console.log(`[env] TOKEN_3: ${BOT3_TOKEN ? "✓ set" : "○ not set (Bot 3 — joiner, falls back to Bot 1)"}`);
   console.log(`[env] TOKEN_4: ${BOT4_TOKEN ? "✓ set" : "○ not set (Bot 4 — token distributor, optional)"}`);
   console.log(`[env] CLIENT_1: ${CLIENT_ID ? "✓ set" : "✗ MISSING"}`);
   console.log(`[env] SECRET_1: ${CLIENT_SECRET ? "✓ set" : "✗ MISSING"}`);
@@ -38,7 +36,6 @@ async function main(): Promise<void> {
   await Promise.all([
     startBot(),
     startVerifyBot(),
-    startJoinerBot(),
     startBot4(),
   ]);
 }
