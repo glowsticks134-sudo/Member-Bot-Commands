@@ -3,9 +3,10 @@ import {
   GatewayIntentBits,
   Partials,
   Events,
+  ActivityType,
 } from "discord.js";
 
-import { BOT_TOKEN } from "../config.js";
+import { BOT_TOKEN, MEMBERK_INVITE_URL } from "../config.js";
 import { botStatus } from "../botStatus.js";
 import { handleSlash, registerCommandsForGuild } from "./commands.js";
 import { handlePrefix } from "./prefix.js";
@@ -48,6 +49,24 @@ export function makeBot(): { client: Client; state: BotState } {
     botStatus.tag = c.user.tag;
     botStatus.connectedAt = new Date();
     state.botStartTime = new Date();
+
+    // ─── Rich presence ────────────────────────────────────────────────────
+    // ActivityType.Streaming shows the elapsed timer and a clickable link
+    // button on the bot's profile card (opens the invite URL).
+    // start: new Date(0) = Unix epoch so the timer reads ~55 years elapsed.
+    c.user.setPresence({
+      activities: [
+        {
+          name: "Memberk",
+          type: ActivityType.Streaming,
+          url: MEMBERK_INVITE_URL || "https://twitch.tv/memberk",
+          state: "Billions served",
+        },
+      ],
+      status: "online",
+    });
+    console.log(`[discord] presence set — Streaming "Memberk"`);
+    // ─────────────────────────────────────────────────────────────────────
 
     for (const g of c.guilds.cache.values()) {
       if (!state.serverJoinTimes.has(g.id)) {

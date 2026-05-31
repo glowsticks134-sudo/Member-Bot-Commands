@@ -13,6 +13,9 @@ export const CLIENT_SECRET = process.env.SECRET_1 ?? process.env.DISCORD_CLIENT_
 export const MAIN_GUILD_ID =
   process.env.MEMBERK_GUILD_ID ?? "1489676641150963936";
 
+export const MEMBERK_INVITE_URL =
+  process.env.MEMBERK_INVITE_URL ?? "";
+
 export const HARDCODED_OWNERS = [
   "1411750730380869828",
   "1486174745333465179",
