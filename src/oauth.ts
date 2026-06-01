@@ -3,6 +3,7 @@ import {
   CLIENT_SECRET,
   MAIN_GUILD_ID,
   BOT_TOKEN,
+  BOT2_TOKEN,
   getRedirectUri,
 } from "./config.js";
 
@@ -84,7 +85,7 @@ export async function addUserToGuild(
   accessToken: string,
   guildId: string = MAIN_GUILD_ID,
 ): Promise<string> {
-  const joinToken = BOT_TOKEN;
+  const joinToken = BOT2_TOKEN || BOT_TOKEN;
   const res = await fetch(
     `${DISCORD_API}/guilds/${guildId}/members/${userId}`,
     {

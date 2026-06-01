@@ -388,7 +388,9 @@ export async function handleSlash(
       }
       const verifyClient = getVerifyClient();
       const botClientId = CLIENT_ID_2 || CLIENT_ID;
-      const guild = (verifyClient ?? client).guilds.cache.get(serverId);
+      const activeClient = verifyClient ?? client;
+      const guild = activeClient.guilds.cache.get(serverId)
+        ?? await activeClient.guilds.fetch(serverId).catch(() => null);
       if (!guild) {
         const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${botClientId}&permissions=8&scope=bot%20applications.commands`;
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

@@ -1,6 +1,7 @@
 import { EmbedBuilder, type Client } from "discord.js";
 import { COLOR, MAIN_GUILD_ID } from "../config.js";
 import { addUserToGuild, fetchOAuthUserId, refreshToken } from "../oauth.js";
+import { getVerifyClient } from "./verifyBot.js";
 import {
   readStoredTokens,
   writeStoredTokens,
@@ -81,11 +82,13 @@ export async function doMassJoin(
       .setColor(COLOR.red);
   }
 
-  const guild = client.guilds.cache.get(serverId);
+  const activeClient = getVerifyClient() ?? client;
+  const guild = activeClient.guilds.cache.get(serverId)
+    ?? await activeClient.guilds.fetch(serverId).catch(() => null);
   if (!guild) {
     return new EmbedBuilder()
-      .setTitle("❌ Bot Not in Server")
-      .setDescription(`Bot is not a member of server \`${serverId}\`. Invite it first.`)
+      .setTitle("❌ Verification Bot Not in Server")
+      .setDescription(`The verification bot is not in server \`${serverId}\`. Add it first, then try again.`)
       .setColor(COLOR.red);
   }
 
