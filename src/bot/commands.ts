@@ -15,6 +15,7 @@ import {
 import {
   BOT_TOKEN,
   CLIENT_ID,
+  CLIENT_ID_2,
   COLOR,
   MAIN_GUILD_ID,
   HARDCODED_OWNERS,
@@ -310,7 +311,8 @@ export async function handleSlash(
 
     case "addbot": {
       if (!(await ownerGuard(i))) return;
-      const url = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
+      const botClientId = CLIENT_ID_2 || CLIENT_ID;
+      const url = `https://discord.com/oauth2/authorize?client_id=${botClientId}&permissions=8&scope=bot%20applications.commands`;
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setLabel("Add Bot")

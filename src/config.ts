@@ -6,6 +6,11 @@ export const PORT = Number(process.env.PORT ?? 5000);
 
 export const BOT_TOKEN = process.env.TOKEN_1 ?? process.env.DISCORD_TOKEN_1 ?? process.env.DISCORD_BOT_TOKEN ?? "";
 export const BOT2_TOKEN = process.env.TOKEN_2 ?? process.env.DISCORD_TOKEN_2 ?? process.env.DISCORD_BOT2_TOKEN ?? "";
+
+function clientIdFromToken(token: string): string {
+  try { return Buffer.from(token.split(".")[0], "base64").toString("utf8"); } catch { return ""; }
+}
+export const CLIENT_ID_2 = process.env.CLIENT_2 ?? clientIdFromToken(BOT2_TOKEN);
 export const BOT4_TOKEN = process.env.TOKEN_4 ?? "";
 export const CLIENT_ID = process.env.CLIENT_1 ?? process.env.DISCORD_CLIENT_ID ?? "";
 export const CLIENT_SECRET = process.env.SECRET_1 ?? process.env.DISCORD_CLIENT_SECRET ?? "";
