@@ -103,7 +103,7 @@ async function handleVerifyInteraction(interaction: ChatInputCommandInteraction)
         .setColor(COLOR.blurple)
         .addFields(
           { name: "🔗 Auth Link", value: `[👉 Click here to authenticate](${url})`, inline: false },
-          { name: "ℹ️ What happens?", value: "You'll authorize the app on Discord. Your token is saved **automatically** — no code pasting needed.", inline: false },
+          { name: "ℹ️ What happens?", value: "You'll authorize the app on Discord. The website will show you a **code** — copy it and come back here to run `/auth code:` with it.", inline: false },
         )
         .setFooter({ text: "Memberk • Authorization" })
         .setTimestamp()],

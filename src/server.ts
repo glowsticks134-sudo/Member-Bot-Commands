@@ -2,8 +2,6 @@ import express, { type Request, type Response } from "express";
 import { PORT, CLIENT_ID, getRedirectUri } from "./config.js";
 import { botStatus } from "./botStatus.js";
 import { getLandingHtml } from "./landing.js";
-import { exchangeCode } from "./oauth.js";
-import { saveUserAuth, appendAuthUser, readAuthUsers } from "./storage/tokens.js";
 
 function escapeHtml(s: string): string {
   return s
@@ -169,11 +167,122 @@ function renderVerifyErrorPage(title: string, body: string): string {
 }
 
 
+function renderCodePage(code: string): string {
+  const safe = escapeHtml(code);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Code — Memberk</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0b0d12; color: #f2f3f5;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    width: 100%; max-width: 460px; margin: 24px;
+    background: #181a20; border: 1px solid #2a2d34; border-radius: 18px;
+    padding: 40px 32px; text-align: center;
+  }
+  .ring {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: rgba(0,200,255,0.12); border: 2px solid #00c8ff;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 24px;
+    animation: pop .4s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  @keyframes pop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .icon { font-size: 32px; line-height: 1; }
+  .brand { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #00c8ff; margin-bottom: 12px; }
+  h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .sub { font-size: 14px; color: #9aa0a6; line-height: 1.6; margin-bottom: 24px; }
+  .divider { border: none; border-top: 1px solid #2a2d34; margin-bottom: 24px; }
+  .code-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #72767d; margin-bottom: 8px; }
+  .code-box {
+    background: #0b0d12; border: 1px solid #3a3d44; border-radius: 10px;
+    padding: 14px 16px; font-family: "Courier New", Courier, monospace;
+    font-size: 13px; color: #e3e5e8; word-break: break-all;
+    line-height: 1.5; margin-bottom: 12px; text-align: left;
+    user-select: all;
+  }
+  .copy-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #00c8ff; color: #0b0d12;
+    border: none; border-radius: 8px; padding: 10px 20px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: background .15s, transform .1s;
+    margin-bottom: 24px;
+  }
+  .copy-btn:hover { background: #33d4ff; }
+  .copy-btn:active { transform: scale(.97); }
+  .copy-btn.copied { background: #3ba55d; color: #fff; }
+  .step { display: flex; align-items: flex-start; gap: 12px; text-align: left; margin-bottom: 12px; }
+  .step-dot {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,200,255,0.15); border: 1px solid rgba(0,200,255,0.4);
+    color: #00c8ff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .step-text { font-size: 13px; color: #b9bbbe; line-height: 1.5; }
+  .step-text strong { color: #e3e5e8; font-weight: 600; }
+  code { background: #0b0d12; padding: 2px 6px; border-radius: 4px; color: #00c8ff; font-size: 12px; }
+  .warn { margin-top: 20px; font-size: 12px; color: #faa81a; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="ring"><div class="icon">🔑</div></div>
+    <div class="brand">Memberk</div>
+    <h1>Authorization Successful</h1>
+    <p class="sub">Copy your code below, then go back to Discord and run <code>/auth code:</code> with it.</p>
+    <hr class="divider">
+    <div class="code-label">Your Code</div>
+    <div class="code-box" id="code">${safe}</div>
+    <button class="copy-btn" id="copyBtn" onclick="copyCode()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy Code
+    </button>
+    <hr class="divider">
+    <div class="step">
+      <div class="step-dot">1</div>
+      <div class="step-text"><strong>Copy</strong> the code above using the button.</div>
+    </div>
+    <div class="step">
+      <div class="step-dot">2</div>
+      <div class="step-text"><strong>Go to Discord</strong> — open the server or DM where you started.</div>
+    </div>
+    <div class="step">
+      <div class="step-dot">3</div>
+      <div class="step-text">Run <code>/auth code:</code> and <strong>paste the code</strong> as the value.</div>
+    </div>
+    <p class="warn">⚠️ This code expires quickly — use it now.</p>
+  </div>
+<script>
+  function copyCode() {
+    var code = document.getElementById("code").textContent.trim();
+    navigator.clipboard.writeText(code).then(function() {
+      var btn = document.getElementById("copyBtn");
+      btn.textContent = "✓ Copied!";
+      btn.classList.add("copied");
+      setTimeout(function() {
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Code';
+        btn.classList.remove("copied");
+      }, 2500);
+    });
+  }
+</script>
+</body>
+</html>`;
+}
+
 async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
   res.set("content-type", "text/html; charset=utf-8");
 
   const code = typeof req.query.code === "string" ? req.query.code : null;
-  const state = typeof req.query.state === "string" ? req.query.state : "";
   const error = typeof req.query.error === "string" ? req.query.error : null;
   const errorDesc =
     typeof req.query.error_description === "string"
@@ -196,103 +305,10 @@ async function handleOAuthCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  console.log(`[oauth] callback received code for state=${state}`);
+  console.log(`[oauth] callback received code — showing to user for /auth paste`);
 
-  // Exchange the code for tokens RIGHT HERE on the server — no /auth step needed
-  const tokenRes = await exchangeCode(code);
-  if (!tokenRes.ok) {
-    console.error(`[oauth] token exchange failed: ${tokenRes.error}`);
-    res.send(renderVerifyErrorPage(
-      "Authorization Failed",
-      `Could not link your account. <code style="background:#0b0d12;padding:2px 5px;border-radius:4px;color:#00c8ff;font-size:12px">${escapeHtml(tokenRes.error.slice(0, 120))}</code>`,
-    ));
-    return;
-  }
-
-  const { access_token, refresh_token } = tokenRes.data;
-
-  // Determine the userId — use state (Discord userId) if provided, else fetch from API
-  let userId = state || "";
-  if (!userId) {
-    try {
-      const meRes = await fetch("https://discord.com/api/v10/users/@me", {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
-      if (meRes.ok) {
-        const me = await meRes.json() as { id: string };
-        userId = me.id;
-      }
-    } catch {
-      // best-effort
-    }
-  }
-
-  // Save to personal stored tokens only — use /restock to move into bulk stock.
-  if (userId) {
-    saveUserAuth(userId, access_token, refresh_token);
-    console.log(`[oauth] tokens saved to stored tokens for userId=${userId}`);
-
-    // Fire-and-forget log to the main guild's bot log channel
-    const botToken = process.env.DISCORD_BOT_TOKEN;
-    if (botToken) {
-      (async () => {
-        try {
-          const { getBotLogChannel } = await import("./storage/botLog.js");
-          const { MAIN_GUILD_ID } = await import("./config.js");
-          const logChannelId = getBotLogChannel(MAIN_GUILD_ID);
-          if (logChannelId) {
-            const embed = {
-              title: "🔑 New Member Authenticated",
-              color: 0x57f287,
-              fields: [
-                { name: "👤 User", value: `<@${userId}> (\`${userId}\`)`, inline: true },
-                { name: "📦 Stock", value: "Token saved to stored tokens", inline: true },
-              ],
-              timestamp: new Date().toISOString(),
-            };
-            await fetch(`https://discord.com/api/v10/channels/${logChannelId}/messages`, {
-              method: "POST",
-              headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ embeds: [embed] }),
-            });
-          }
-        } catch {
-          // silently ignore — log channel may be missing
-        }
-      })();
-    }
-  } else {
-    console.warn("[oauth] no userId in state — tokens saved without userId key");
-  }
-
-  // DM the user to confirm via Discord REST API
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (botToken && userId) {
-    (async () => {
-      try {
-        const dmRes = await fetch("https://discord.com/api/v10/users/@me/channels", {
-          method: "POST",
-          headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ recipient_id: userId }),
-        });
-        if (dmRes.ok) {
-          const dm = await dmRes.json() as { id: string };
-          await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
-            method: "POST",
-            headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              content: `✅ **You've been successfully authenticated!**\n\nYour token has been saved automatically — no extra steps needed.\nYou can now be joined to servers using \`/djoin\`.`,
-            }),
-          });
-          console.log(`[oauth] DM sent to userId=${userId}`);
-        }
-      } catch (e) {
-        console.error("[oauth] DM failed:", e);
-      }
-    })();
-  }
-
-  res.send(renderVerifySuccessPage());
+  // Show the code to the user — they paste it into /auth code: in Discord
+  res.send(renderCodePage(code));
 }
 
 export function startServer(): void {
