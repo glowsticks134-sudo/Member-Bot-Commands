@@ -15,6 +15,7 @@ const SECRET_USERS = [...HARDCODED_OWNERS, "1443710013918023683"];
 // Commands any server member can run via prefix
 const PUBLIC_CMDS = new Set([
   "help", "count", "list_users", "servers", "server_age", "invite", "status",
+  "auth", "djoin",
 ]);
 
 export async function handlePrefix(

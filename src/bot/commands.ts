@@ -23,6 +23,7 @@ import {
 } from "../config.js";
 import { addAllowedGuild, isAllowedGuild, removeAllowedGuild } from "../storage/allowedGuilds.js";
 import { getTierRoles, setTierRoles, clearTierRole, TIERS, TIER_LABELS, type Tier } from "../storage/tierRoles.js";
+import { getVerifyClient } from "./verifyBot.js";
 import { addBlacklisted, isBlacklisted, removeBlacklisted } from "../storage/blacklist.js";
 import { readStoredTokens } from "../storage/tokens.js";
 import { setBotLogChannel, clearBotLogChannel } from "../storage/botLog.js";
@@ -134,13 +135,14 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       description: "Assign Discord roles to each membership tier (owners only)",
       type: 1,
       options: [
-        { name: "bronze",   description: "Role for Bronze tier",   type: O.Role, required: false },
-        { name: "silver",   description: "Role for Silver tier",   type: O.Role, required: false },
-        { name: "gold",     description: "Role for Gold tier",     type: O.Role, required: false },
-        { name: "premium",  description: "Role for Premium tier",  type: O.Role, required: false },
-        { name: "diamond",  description: "Role for Diamond tier",  type: O.Role, required: false },
-        { name: "emerald",  description: "Role for Emerald tier",  type: O.Role, required: false },
-        { name: "obsidian", description: "Role for Obsidian tier", type: O.Role, required: false },
+        { name: "free_bronze", description: "Role for Free Bronze tier", type: O.Role, required: false },
+        { name: "bronze",      description: "Role for Bronze tier",      type: O.Role, required: false },
+        { name: "silver",      description: "Role for Silver tier",      type: O.Role, required: false },
+        { name: "gold",        description: "Role for Gold tier",        type: O.Role, required: false },
+        { name: "premium",     description: "Role for Premium tier",     type: O.Role, required: false },
+        { name: "diamond",     description: "Role for Diamond tier",     type: O.Role, required: false },
+        { name: "emerald",     description: "Role for Emerald tier",     type: O.Role, required: false },
+        { name: "obsidian",    description: "Role for Obsidian tier",    type: O.Role, required: false },
       ],
     },
     { name: "list_tier_roles", description: "Show which role is assigned to each membership tier", type: 1 },
@@ -155,13 +157,14 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
           type: O.String,
           required: true,
           choices: [
-            { name: "Bronze",   value: "bronze"   },
-            { name: "Silver",   value: "silver"   },
-            { name: "Gold",     value: "gold"     },
-            { name: "Premium",  value: "premium"  },
-            { name: "Diamond",  value: "diamond"  },
-            { name: "Emerald",  value: "emerald"  },
-            { name: "Obsidian", value: "obsidian" },
+            { name: "Free Bronze", value: "free_bronze" },
+            { name: "Bronze",      value: "bronze"      },
+            { name: "Silver",      value: "silver"      },
+            { name: "Gold",        value: "gold"        },
+            { name: "Premium",     value: "premium"     },
+            { name: "Diamond",     value: "diamond"     },
+            { name: "Emerald",     value: "emerald"     },
+            { name: "Obsidian",    value: "obsidian"    },
           ],
         },
       ],
@@ -383,17 +386,27 @@ export async function handleSlash(
         await i.reply({ content: "❌ Invalid server ID — must be a numeric Discord server ID.", ephemeral: true });
         return;
       }
-      const guild = client.guilds.cache.get(serverId);
+      const verifyClient = getVerifyClient();
+      const botClientId = CLIENT_ID_2 || CLIENT_ID;
+      const guild = (verifyClient ?? client).guilds.cache.get(serverId);
       if (!guild) {
-        const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
+        const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${botClientId}&permissions=8&scope=bot%20applications.commands`;
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setLabel("Add Verification Bot")
+            .setStyle(ButtonStyle.Link)
+            .setURL(inviteUrl)
+            .setEmoji("🔗"),
+        );
         await i.reply({
           embeds: [new EmbedBuilder()
-            .setTitle("❌ Bot Not in Server")
+            .setTitle("❌ Verification Bot Not in Server")
             .setDescription(
-              `Bot is not in server \`${serverId}\`.\n\n` +
-              `[Add the bot to that server first](${inviteUrl}), then run \`/djoin\` again.`,
+              `The verification bot is not in server \`${serverId}\`.\n\n` +
+              `Add it first using the button below, then run \`/djoin\` again.`,
             )
             .setColor(COLOR.red)],
+          components: [row],
           ephemeral: true,
         });
         return;

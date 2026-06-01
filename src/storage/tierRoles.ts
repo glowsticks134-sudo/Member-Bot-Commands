@@ -4,17 +4,18 @@ import { readJson, writeJson } from "./files.js";
 
 const TIER_ROLES_FILE = path.join(DATA_DIR, "tier_roles.json");
 
-export const TIERS = ["bronze", "silver", "gold", "premium", "diamond", "emerald", "obsidian"] as const;
+export const TIERS = ["free_bronze", "bronze", "silver", "gold", "premium", "diamond", "emerald", "obsidian"] as const;
 export type Tier = typeof TIERS[number];
 
 export const TIER_LABELS: Record<Tier, string> = {
-  bronze:   "🥉 Bronze",
-  silver:   "🥈 Silver",
-  gold:     "🥇 Gold",
-  premium:  "💎 Premium",
-  diamond:  "💠 Diamond",
-  emerald:  "🟢 Emerald",
-  obsidian: "⬛ Obsidian",
+  free_bronze: "🆓 Free Bronze",
+  bronze:      "🥉 Bronze",
+  silver:      "🥈 Silver",
+  gold:        "🥇 Gold",
+  premium:     "💎 Premium",
+  diamond:     "💠 Diamond",
+  emerald:     "🟢 Emerald",
+  obsidian:    "⬛ Obsidian",
 };
 
 export type TierRoleMap = Partial<Record<Tier, string>>;
