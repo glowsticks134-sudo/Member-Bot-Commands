@@ -1,5 +1,8 @@
 import {
   ApplicationCommandOptionType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChannelType,
   EmbedBuilder,
   REST,
@@ -52,6 +55,7 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       ],
     },
     { name: "invite", description: "Get the bot invite link", type: 1 },
+    { name: "addbot", description: "Post an Add Bot button so members can invite the bot to their server", type: 1 },
     { name: "help", description: "Show all available commands", type: 1 },
 
     // Owner
@@ -300,6 +304,27 @@ export async function handleSlash(
           )
           .setColor(COLOR.blurple)
           .setTimestamp()],
+      });
+      return;
+    }
+
+    case "addbot": {
+      if (!(await ownerGuard(i))) return;
+      const url = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setLabel("Add Bot")
+          .setStyle(ButtonStyle.Link)
+          .setURL(url)
+          .setEmoji("🔗"),
+      );
+      await i.reply({
+        embeds: [new EmbedBuilder()
+          .setDescription(
+            "Click the button below to add the bot to your server.\nOnce it's in, come back and use `!djoin` to join members.",
+          )
+          .setColor(COLOR.blurple)],
+        components: [row],
       });
       return;
     }
