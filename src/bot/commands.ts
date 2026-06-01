@@ -22,6 +22,7 @@ import {
   SUPER_OWNER_ID,
 } from "../config.js";
 import { addAllowedGuild, isAllowedGuild, removeAllowedGuild } from "../storage/allowedGuilds.js";
+import { getTierRoles, setTierRoles, clearTierRole, TIERS, TIER_LABELS, type Tier } from "../storage/tierRoles.js";
 import { addBlacklisted, isBlacklisted, removeBlacklisted } from "../storage/blacklist.js";
 import { readStoredTokens } from "../storage/tokens.js";
 import { setBotLogChannel, clearBotLogChannel } from "../storage/botLog.js";
@@ -128,6 +129,43 @@ export function buildSlashDefinitions(): RESTPostAPIApplicationCommandsJSONBody[
       ],
     },
     { name: "private_bot",     description: "Set pricing and post a private bot listing (owners only)",       type: 1 },
+    {
+      name: "set_tier_roles",
+      description: "Assign Discord roles to each membership tier (owners only)",
+      type: 1,
+      options: [
+        { name: "bronze",   description: "Role for Bronze tier",   type: O.Role, required: false },
+        { name: "silver",   description: "Role for Silver tier",   type: O.Role, required: false },
+        { name: "gold",     description: "Role for Gold tier",     type: O.Role, required: false },
+        { name: "premium",  description: "Role for Premium tier",  type: O.Role, required: false },
+        { name: "diamond",  description: "Role for Diamond tier",  type: O.Role, required: false },
+        { name: "emerald",  description: "Role for Emerald tier",  type: O.Role, required: false },
+        { name: "obsidian", description: "Role for Obsidian tier", type: O.Role, required: false },
+      ],
+    },
+    { name: "list_tier_roles", description: "Show which role is assigned to each membership tier", type: 1 },
+    {
+      name: "clear_tier_role",
+      description: "Remove the role assignment for a specific tier (owners only)",
+      type: 1,
+      options: [
+        {
+          name: "tier",
+          description: "Tier to clear",
+          type: O.String,
+          required: true,
+          choices: [
+            { name: "Bronze",   value: "bronze"   },
+            { name: "Silver",   value: "silver"   },
+            { name: "Gold",     value: "gold"     },
+            { name: "Premium",  value: "premium"  },
+            { name: "Diamond",  value: "diamond"  },
+            { name: "Emerald",  value: "emerald"  },
+            { name: "Obsidian", value: "obsidian" },
+          ],
+        },
+      ],
+    },
 
     // ─── Free Bronze / Status Role ────────────────────────────────────────
     {
@@ -494,6 +532,62 @@ export async function handleSlash(
       if (!(await ownerGuard(i))) return;
       await handleInfoCommand(i);
       return;
+
+    // ─── Tier Roles ───────────────────────────────────────────────────────────
+
+    case "set_tier_roles": {
+      if (!(await ownerGuard(i))) return;
+      const guildId = i.guildId!;
+      const updates: Partial<Record<Tier, string>> = {};
+      for (const tier of TIERS) {
+        const role = i.options.getRole(tier);
+        if (role) updates[tier] = role.id;
+      }
+      if (Object.keys(updates).length === 0) {
+        await i.reply({ content: "❌ Provide at least one role option to set.", ephemeral: true });
+        return;
+      }
+      const saved = setTierRoles(guildId, updates);
+      const lines = TIERS
+        .filter(t => saved[t])
+        .map(t => `${TIER_LABELS[t]} — <@&${saved[t]}>`);
+      await i.reply({
+        embeds: [new EmbedBuilder()
+          .setTitle("✅ Tier Roles Updated")
+          .setDescription(lines.join("\n") || "No roles set yet.")
+          .setColor(COLOR.green)
+          .setFooter({ text: "Use /list_tier_roles to see all assignments" })],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    case "list_tier_roles": {
+      const guildId = i.guildId!;
+      const map = getTierRoles(guildId);
+      const lines = TIERS.map(t =>
+        map[t] ? `${TIER_LABELS[t]} — <@&${map[t]}>` : `${TIER_LABELS[t]} — *not set*`,
+      );
+      await i.reply({
+        embeds: [new EmbedBuilder()
+          .setTitle("🏷️ Tier Role Assignments")
+          .setDescription(lines.join("\n"))
+          .setColor(COLOR.blurple)],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    case "clear_tier_role": {
+      if (!(await ownerGuard(i))) return;
+      const tier = i.options.getString("tier", true) as Tier;
+      clearTierRole(i.guildId!, tier);
+      await i.reply({
+        content: `✅ Cleared the role assignment for **${TIER_LABELS[tier]}**.`,
+        ephemeral: true,
+      });
+      return;
+    }
 
     // ─── Free Bronze / Status Role ────────────────────────────────────────────
 
